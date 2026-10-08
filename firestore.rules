@@ -91,6 +91,17 @@ service cloud.firestore {
         match /students/{studentId} {
           allow read, write: if ownsSubject(subjectId);
         }
+
+        // Bài tập tự luận — chỉ tick nộp/chưa nộp theo tuần, không điểm số
+        // hay nhận xét (xem docs/DATA_MODEL.md). Độc lập với assignments/
+        // submissions (đề trắc nghiệm) ở trên.
+        match /writtenWeeks/{weekId} {
+          allow read, write: if ownsSubject(subjectId);
+        }
+
+        match /writtenSubmissions/{submissionId} {
+          allow read, write: if ownsSubject(subjectId);
+        }
       }
 
       // Đề/bài giao, bài làm, điểm danh — theo năm học.

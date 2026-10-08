@@ -44,9 +44,14 @@ export default function ClassDetailPage() {
         <h1 className="text-xl font-semibold text-slate-900">
           Học sinh ({students.length})
         </h1>
-        <Link to={`/classes/${classId}/assignments`} className="btn-secondary text-sm">
-          Đề / bài giao của lớp →
-        </Link>
+        <div className="flex gap-2">
+          <Link to={`/classes/${classId}/written`} className="btn-secondary text-sm">
+            Bài tập tự luận →
+          </Link>
+          <Link to={`/classes/${classId}/assignments`} className="btn-secondary text-sm">
+            Đề / bài giao của lớp →
+          </Link>
+        </div>
       </div>
 
       <div className="card mb-6 space-y-2">

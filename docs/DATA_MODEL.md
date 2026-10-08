@@ -25,6 +25,8 @@
   /questionBank/{questionId}         # ngân hàng câu hỏi (bền vững, không theo năm)
   /classes/{classId}                 # lớp — gắn schoolYear
     /students/{studentId}
+    /writtenWeeks/{weekId}           # tuần có giao bài tự luận (xem mục dưới)
+    /writtenSubmissions/{studentId}  # tick nộp/chưa nộp bài tự luận theo tuần
   /assignments/{assignmentId}        # đề/bài giao — gắn schoolYear
   /submissions/{submissionId}        # bài làm/kết quả — gắn schoolYear
   /attendance/{recordId}             # điểm danh — gắn schoolYear
@@ -58,6 +60,28 @@ này dùng Admin SDK đọc câu hỏi gốc (có đáp án đúng) để chấm
 document `submissions/*` — đáp án đúng không bao giờ rời khỏi server. Câu tự
 luận không tự chấm được, lưu lại chờ giáo viên chấm tay (chưa có UI ở bản
 hiện tại).
+
+## Bài tập tự luận — tick nộp bài theo tuần (không chấm điểm)
+
+Mô hình này **kế thừa trực tiếp bản sửa lại ở V6.3.8**
+(`written-submission-data.ts`/`WrittenSubmissionPanel.tsx`): giáo viên
+KHÔNG viết nhận xét hay cho điểm câu tự luận — chỉ tick học sinh đã nộp bài
+hay chưa theo từng tuần (tối đa 34 tuần/năm học). Hoàn toàn độc lập với
+`assignments`/`submissions` (đề trắc nghiệm) ở trên; không liên quan tới
+câu hỏi loại `"essay"` trong ngân hàng câu hỏi.
+
+- `writtenWeeks/{weekId}` (`weekId = "w" + số tuần, ví dụ "w05"`): khai báo
+  tuần nào lớp này có giao bài tự luận — quyết định cột nào hiện ra trên
+  bảng tick. `{ week, title?, schoolYear, classId, subjectId, createdAt }`.
+- `writtenSubmissions/{studentId}` (id = trùng `studentId`, mỗi học sinh
+  đúng 1 document/lớp): `{ weeks: Record<string tuần, boolean> }` — field
+  `weeks` được ghi bằng `setDoc(..., {merge: true})` nên Firestore tự deep-
+  merge map lồng, mỗi lần tick chỉ cần gửi đúng 1 tuần thay đổi.
+
+So với V6.3.8 (collection phẳng cấp toàn trường, phải ghép
+năm học+khối+lớp+tuần thành 1 id dài), V7 đơn giản hơn: lưu trực tiếp dưới
+`classes/{classId}` vì lớp đã tự mang `subjectId`+`schoolYear`, không cần
+trường "khối" (V7 không khoá cứng khối lớp theo môn).
 
 ## Quy trình đóng năm học (tham khảo)
 

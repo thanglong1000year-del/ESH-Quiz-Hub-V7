@@ -118,6 +118,34 @@ export interface Submission extends SchoolYearScoped {
   submittedAt: string;
 }
 
+/**
+ * "Bài tập tự luận" — mô hình V7 kế thừa trực tiếp từ bản sửa lại ở V6.3.8:
+ * giáo viên KHÔNG chấm điểm/viết nhận xét câu tự luận, chỉ tick học sinh đã
+ * nộp bài hay chưa theo từng tuần (tối đa 34 tuần/năm học). Đây là tính năng
+ * độc lập với Đề bài trắc nghiệm (`Assignment`/`Submission`) — không liên
+ * quan tới câu hỏi tự luận trong ngân hàng câu hỏi.
+ */
+export const WRITTEN_SUBMISSION_MAX_WEEK = 34;
+
+export interface WrittenWeek extends SchoolYearScoped {
+  id: string;
+  classId: string;
+  week: number; // 1..WRITTEN_SUBMISSION_MAX_WEEK
+  title?: string;
+  createdAt: string;
+}
+
+export interface WrittenSubmission extends SchoolYearScoped {
+  /** Trùng với studentId — mỗi học sinh đúng 1 document/lớp. */
+  id: string;
+  classId: string;
+  studentId: string;
+  studentName: string;
+  /** key = số tuần dạng chuỗi (ví dụ "5"), value = true nếu đã nộp. */
+  weeks: Record<string, boolean>;
+  updatedAt: string;
+}
+
 export interface AttendanceRecord extends SchoolYearScoped {
   id: string;
   classId: string;

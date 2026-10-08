@@ -48,7 +48,7 @@ Hướng dẫn chạy dev: [`docs/DEV_SETUP.md`](docs/DEV_SETUP.md).
 - [x] Đề bài — giáo viên chọn câu hỏi từ ngân hàng, đặt thời gian mở/đóng, chia sẻ link
 - [x] Học sinh làm bài qua link công khai (tài khoản ẩn danh, không cần đăng ký) — chấm điểm trắc nghiệm **server-side** qua Cloud Function `submitAssignment` để không lộ đáp án đúng cho client
 - [x] Giáo viên xem kết quả bài làm theo đề
-- [ ] Chấm tay câu tự luận (hiện chỉ lưu lại, chưa có UI chấm điểm)
+- [x] Bài tập tự luận — tick học sinh đã nộp bài theo từng tuần (không chấm điểm/nhận xét, kế thừa mô hình đã sửa ở V6.3.8)
 - [ ] Điểm danh
 - [ ] Báo cáo/campaign PDF + email (để Giai đoạn sau theo lộ trình đã chốt)
 - [ ] Trang Owner tạo tài khoản giáo viên (hiện phải tạo thủ công qua Firebase Console/Auth rồi dán UID)
