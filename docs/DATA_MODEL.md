@@ -45,6 +45,20 @@ từ path — rules chỉ cần kiểm `ownerTeacherId` của subject cha khớp
 | `classes/*`, `students/*` | `subjectId`, `schoolYear` | Theo năm học |
 | `assignments/*`, `submissions/*`, `attendance/*` | `subjectId`, `schoolYear` | Theo năm học |
 
+## Đề bài & nộp bài — tách biệt dữ liệu "an toàn" khỏi "nhạy cảm"
+
+`assignments/{id}` lưu `questionsSnapshot`: bản sao các câu hỏi đã **lược bỏ
+đáp án đúng** (`correctOptionIds`) — đây là dữ liệu duy nhất học sinh (tài
+khoản ẩn danh, không có hồ sơ `/users/{uid}`) được phép đọc trực tiếp, và chỉ
+khi `status == "published"` (xem `firestore.rules`).
+
+Nộp bài **không đi qua client Firestore write**. Học sinh gọi Cloud Function
+callable `submitAssignment` (`functions/src/submitAssignment.ts`), function
+này dùng Admin SDK đọc câu hỏi gốc (có đáp án đúng) để chấm điểm, rồi mới ghi
+document `submissions/*` — đáp án đúng không bao giờ rời khỏi server. Câu tự
+luận không tự chấm được, lưu lại chờ giáo viên chấm tay (chưa có UI ở bản
+hiện tại).
+
 ## Quy trình đóng năm học (tham khảo)
 
 Xem `functions/src/yearRollover.ts` — chạy khi Owner kích hoạt, theo đúng 4

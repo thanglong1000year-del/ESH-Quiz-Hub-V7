@@ -90,23 +90,31 @@ export interface Student extends SchoolYearScoped {
   studentCode?: string;
 }
 
+export type AssignmentStatus = "draft" | "published" | "closed";
+
 export interface Assignment extends SchoolYearScoped {
   id: string;
   classId: string;
   title: string;
   questionIds: string[];
+  /** Bản sao câu hỏi đã lược bỏ đáp án đúng — an toàn để học sinh đọc. */
+  questionsSnapshot: unknown[];
   durationMinutes: number;
   openAt: string;
   closeAt: string;
+  status: AssignmentStatus;
+  createdAt: string;
 }
 
 export interface Submission extends SchoolYearScoped {
   id: string;
   assignmentId: string;
   classId: string;
-  studentId: string;
-  answers: Record<string, unknown>;
-  score?: number;
+  /** Học sinh không có tài khoản Firebase Auth đầy đủ — lưu tên tự nhập. */
+  studentName: string;
+  answers: Record<string, string[] | string>;
+  score: number | null;
+  maxScore: number;
   submittedAt: string;
 }
 

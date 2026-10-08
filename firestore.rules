@@ -20,16 +20,26 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Học sinh dùng tài khoản ẩn danh (anonymous auth) để nộp bài — họ KHÔNG
+    // có document /users/{uid}. get() trên document không tồn tại sẽ throw,
+    // nên phải kiểm tra exists() trước (exists() không bao giờ throw) rồi
+    // mới get() — nếu không, mọi `isOwner() || isTeacher()` sẽ throw ngay cả
+    // khi đứng bên trái của `||`, làm sập toàn bộ điều kiện allow thay vì
+    // rơi xuống nhánh bên phải dành cho học sinh.
+    function hasProfile() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
     function myProfile() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
     function isOwner() {
-      return signedIn() && myProfile().data.role == 'owner';
+      return signedIn() && hasProfile() && myProfile().data.role == 'owner';
     }
 
     function isTeacher() {
-      return signedIn() && myProfile().data.role == 'teacher';
+      return signedIn() && hasProfile() && myProfile().data.role == 'teacher';
     }
 
     // Cô lập theo môn: chỉ giáo viên sở hữu CHÍNH môn đó (hoặc Owner) được truy cập.
@@ -85,11 +95,22 @@ service cloud.firestore {
 
       // Đề/bài giao, bài làm, điểm danh — theo năm học.
       match /assignments/{assignmentId} {
-        allow read, write: if ownsSubject(subjectId);
+        // Giáo viên sở hữu môn: toàn quyền. Học sinh (bất kỳ ai có link, kể
+        // cả tài khoản ẩn danh): chỉ đọc khi đề đã "published" — dùng để
+        // hiển thị đề bài khi làm bài. KHÔNG được chứa đáp án đúng trong
+        // document này (xem `questionsSnapshot` — phải lược bỏ correctOptionIds
+        // khi tạo, chấm điểm thật diễn ra server-side qua Cloud Function
+        // `submitAssignment`, không qua client write trực tiếp).
+        allow read: if ownsSubject(subjectId) ||
+          (signedIn() && resource.data.status == 'published');
+        allow create, update, delete: if ownsSubject(subjectId);
       }
 
       match /submissions/{submissionId} {
-        // Giáo viên sở hữu môn đọc/ghi mọi bài làm trong môn mình.
+        // Giáo viên sở hữu môn đọc/ghi mọi bài làm trong môn mình. Học sinh
+        // KHÔNG ghi trực tiếp vào đây — nộp bài đi qua Cloud Function
+        // `submitAssignment` (Admin SDK, bỏ qua rules) để chấm điểm server-side
+        // và tránh lộ đáp án đúng cho client.
         allow read, write: if ownsSubject(subjectId);
       }
 

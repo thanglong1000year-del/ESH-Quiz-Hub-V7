@@ -32,7 +32,9 @@ trình tại [tài liệu kiến trúc](https://claude.ai/code/artifact/7498db22
 Chi tiết schema: [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md).
 Hướng dẫn chạy dev: [`docs/DEV_SETUP.md`](docs/DEV_SETUP.md).
 
-## Trạng thái hiện tại — Giai đoạn 0 (nền tảng)
+## Trạng thái hiện tại
+
+**Giai đoạn 0 (nền tảng) — xong.** **Giai đoạn 1 (core tự chủ giáo viên) — xong phần làm bài trắc nghiệm.**
 
 - [x] Cấu trúc project (Vite + React + TypeScript + Tailwind)
 - [x] Firestore schema tổng quát hoá theo môn (`docs/DATA_MODEL.md`)
@@ -41,10 +43,21 @@ Hướng dẫn chạy dev: [`docs/DEV_SETUP.md`](docs/DEV_SETUP.md).
 - [x] Cloud Function kiểm tra tự động câu hỏi (`functions/src/validateQuestion.ts`)
 - [x] Cloud Function đóng năm học + archive + purge theo lịch
 - [x] Đăng nhập, điều hướng theo vai trò (Owner/Teacher), design system cơ bản
-- [ ] Ngân hàng câu hỏi (UI soạn câu hỏi trắc nghiệm/tự luận)
-- [ ] Quản lý lớp/học sinh
-- [ ] Luồng làm bài trắc nghiệm + nộp bài tự luận
-- [ ] Báo cáo/campaign (để Giai đoạn sau theo lộ trình đã chốt)
+- [x] Ngân hàng câu hỏi — UI soạn/sửa/xoá (thùng rác) câu hỏi trắc nghiệm & tự luận, hiển thị trạng thái kiểm tra tự động
+- [x] Quản lý lớp/học sinh — tạo lớp theo năm học, thêm học sinh hàng loạt
+- [x] Đề bài — giáo viên chọn câu hỏi từ ngân hàng, đặt thời gian mở/đóng, chia sẻ link
+- [x] Học sinh làm bài qua link công khai (tài khoản ẩn danh, không cần đăng ký) — chấm điểm trắc nghiệm **server-side** qua Cloud Function `submitAssignment` để không lộ đáp án đúng cho client
+- [x] Giáo viên xem kết quả bài làm theo đề
+- [ ] Chấm tay câu tự luận (hiện chỉ lưu lại, chưa có UI chấm điểm)
+- [ ] Điểm danh
+- [ ] Báo cáo/campaign PDF + email (để Giai đoạn sau theo lộ trình đã chốt)
+- [ ] Trang Owner tạo tài khoản giáo viên (hiện phải tạo thủ công qua Firebase Console/Auth rồi dán UID)
+
+### Lưu ý khi deploy production
+
+**Bật Anonymous Authentication** trong Firebase Console → Authentication →
+Sign-in method — bắt buộc để học sinh làm bài qua link công khai (không cần
+tài khoản). Emulator Suite đã bật sẵn, không cần làm gì thêm khi dev.
 
 ## Stack kỹ thuật
 

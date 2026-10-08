@@ -1,10 +1,8 @@
+import { Link } from "react-router-dom";
 import { useAuth } from "@shared/lib/auth-context";
 
 /**
  * Khung điều hướng cho giáo viên trong phạm vi môn của mình.
- * Các phần dưới (ngân hàng câu hỏi, lớp học, đề/bài giao, báo cáo) sẽ được
- * xây tiếp ở các bước sau — đây là Giai đoạn 0: nền tảng điều hướng + xác
- * nhận cô lập theo subjectId hoạt động đúng.
  */
 export default function TeacherDashboard() {
   const { profile } = useAuth();
@@ -22,10 +20,16 @@ export default function TeacherDashboard() {
   }
 
   const sections = [
-    { title: "Ngân hàng câu hỏi", desc: "Soạn và quản lý câu hỏi trắc nghiệm/tự luận của môn bạn." },
-    { title: "Lớp học", desc: "Quản lý lớp và danh sách học sinh của bạn." },
-    { title: "Đề / bài giao", desc: "Tạo đề thi, bài tập từ ngân hàng câu hỏi." },
-    { title: "Kết quả & điểm danh", desc: "Xem kết quả làm bài và điểm danh theo lớp." },
+    {
+      title: "Ngân hàng câu hỏi",
+      desc: "Soạn và quản lý câu hỏi trắc nghiệm/tự luận của môn bạn.",
+      to: "/questions",
+    },
+    {
+      title: "Lớp học",
+      desc: "Quản lý lớp, danh sách học sinh, tạo đề và xem kết quả.",
+      to: "/classes",
+    },
   ];
 
   return (
@@ -36,10 +40,10 @@ export default function TeacherDashboard() {
       </p>
       <div className="grid sm:grid-cols-2 gap-4">
         {sections.map((s) => (
-          <div key={s.title} className="card">
+          <Link key={s.title} to={s.to} className="card hover:border-brand-300 transition-colors">
             <h2 className="font-medium text-slate-900">{s.title}</h2>
             <p className="text-sm text-slate-500 mt-1">{s.desc}</p>
-          </div>
+          </Link>
         ))}
       </div>
     </div>
