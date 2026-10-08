@@ -64,6 +64,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={state}>{children}</AuthContext.Provider>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook đi
+// kèm Provider trong cùng file là pattern chuẩn của React Context, không
+// phải lỗi; tắt cảnh báo fast-refresh vì --max-warnings 0 coi nó là lỗi CI.
 export function useAuth() {
   return useContext(AuthContext);
 }
