@@ -1,0 +1,69 @@
+name: CI
+
+# Tự động chạy mỗi khi có push hoặc Pull Request vào main — bắt lỗi
+# cú pháp/dependency ngay trên hạ tầng GitHub (sandbox Claude bị chặn
+# kết nối npm registry nên không tự kiểm tra được, workflow này thay thế).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  frontend:
+    name: Frontend — typecheck, lint, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          # Chưa dùng cache: "npm" vì repo chưa có package-lock.json (sandbox
+          # Claude không cài được npm packages để tạo lockfile). Sau lần
+          # `npm install` đầu tiên trên máy thật, commit package-lock.json
+          # rồi bật lại cache ở đây để build nhanh hơn.
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+  functions:
+    name: Cloud Functions — build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: functions
+        run: npm install
+
+      - name: Build
+        working-directory: functions
+        run: npm run build
+
+  firestore-rules:
+    name: Firestore Rules — kiểm tra cú pháp
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cài Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Kiểm tra cú pháp rules (không cần project thật)
+        run: |
+          firebase emulators:exec --only firestore --project demo-ci "echo 'rules OK'"
