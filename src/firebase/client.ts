@@ -37,13 +37,11 @@ if (useEmulator) {
     connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
     connectFunctionsEmulator(functions, "127.0.0.1", 5001);
     g.__ESH_EMULATORS_CONNECTED__ = true;
-    // eslint-disable-next-line no-console
     console.info(
       "[ESH Quiz Hub V7] Đang dùng Firebase Emulator Suite (dev an toàn, không đụng dữ liệu thật)."
     );
   }
 } else if (import.meta.env.DEV) {
-  // eslint-disable-next-line no-console
   console.warn(
     "[ESH Quiz Hub V7] CẢNH BÁO: đang nối THẲNG Firebase production từ môi trường dev " +
       "(VITE_USE_PRODUCTION_FIREBASE=true). Chỉ dùng khi thực sự cần thiết."

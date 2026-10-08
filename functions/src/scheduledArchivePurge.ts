@@ -25,7 +25,6 @@ export const scheduledArchivePurge = onSchedule(
       await doc.ref.delete();
     }
 
-    // eslint-disable-next-line no-console
     console.log(`[scheduledArchivePurge] Đã xoá ${expired.size} archive hết hạn.`);
   }
 );
