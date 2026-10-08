@@ -78,6 +78,11 @@ jobs:
             tail -n 100 firebase-debug.log
           fi
           if [ $code -ne 0 ]; then
-            echo "::error::Firestore emulator exec thất bại (exit $code). Xem output phía trên trong log của step này."
+            # Tải log bằng gh run view bị chặn trong sandbox Claude (log zip
+            # chuyển hướng qua Azure Blob Storage ngoài allowlist), nên in lỗi
+            # thật ra dưới dạng annotation GitHub (lấy được qua Checks API,
+            # không cần tải log) để chẩn đoán được từ bên ngoài runner.
+            SUMMARY=$(tail -c 3000 emulator-output.log | tr '\n' ' ' | tr '%' ' ' | tr '\r' ' ')
+            echo "::error::Firestore emulator exec thất bại (exit $code). Output: ${SUMMARY}"
             exit $code
           fi
