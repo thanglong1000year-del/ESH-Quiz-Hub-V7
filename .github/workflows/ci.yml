@@ -66,4 +66,4 @@ jobs:
 
       - name: Kiểm tra cú pháp rules (không cần project thật)
         run: |
-          firebase emulators:exec --only firestore --project demo-ci "echo 'rules OK'"
+          firebase emulators:exec --only firestore --project demo-ci -c ci-firebase.json "echo 'rules OK'"

@@ -9,7 +9,7 @@ module.exports = {
   parser: "@typescript-eslint/parser",
   parserOptions: { ecmaVersion: "latest", sourceType: "module" },
   plugins: ["react-refresh"],
-  ignorePatterns: ["dist", "lib", "node_modules", "functions/lib"],
+  ignorePatterns: ["dist", "node_modules", "functions/lib"],
   rules: {
     "react-refresh/only-export-components": [
       "warn",
