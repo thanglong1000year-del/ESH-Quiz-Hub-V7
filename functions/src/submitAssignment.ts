@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import { getApps, initializeApp } from "firebase-admin/app";
+import { gradeMultipleChoiceAnswers } from "./gradeAssignment.js";
 
 if (getApps().length === 0) {
   initializeApp();
@@ -56,33 +57,12 @@ export const submitAssignment = onCall(
     }
 
     const questionIds: string[] = assignment.questionIds ?? [];
-    const questionDocs = await Promise.all(
-      questionIds.map((id) =>
-        db.collection("subjects").doc(subjectId).collection("questionBank").doc(id).get()
-      )
-    );
-
-    let earned = 0;
-    let maxScore = 0;
-    const perQuestionMax = 10 / Math.max(questionIds.length, 1);
-
-    for (const qDoc of questionDocs) {
-      if (!qDoc.exists) continue;
-      const q = qDoc.data()!;
-      if (q.type !== "multiple_choice") continue; // tự luận: chấm tay sau, không tính vào maxScore tự động
-      maxScore += perQuestionMax;
-
-      const given = answers[qDoc.id];
-      const givenIds = Array.isArray(given) ? given : given ? [given] : [];
-      const correctIds: string[] = q.correctOptionIds ?? [];
-
-      const isCorrect =
-        givenIds.length === correctIds.length &&
-        correctIds.every((id) => givenIds.includes(id));
-      if (isCorrect) earned += perQuestionMax;
-    }
-
-    const score = maxScore > 0 ? Math.round((earned / maxScore) * 100) / 10 : null;
+    const { score } = await gradeMultipleChoiceAnswers({
+      db,
+      subjectId,
+      questionIds,
+      answers,
+    });
 
     const submissionRef = db
       .collection("subjects")

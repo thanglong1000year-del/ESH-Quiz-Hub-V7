@@ -6,20 +6,26 @@
    Giáo viên môn Sinh học và giáo viên môn Lịch sử không bao giờ thấy, đọc, hay
    dùng chung bất kỳ dữ liệu nào của nhau — kể cả khi họ cùng dùng chung 1 app,
    1 Firebase project. Đây **không phải** mô hình "nhiều giáo viên chia sẻ ngân
-   hàng câu hỏi trong cùng 1 môn" — mỗi `subjectId` gắn với đúng 1 giáo viên sở
-   hữu (`ownerTeacherId`) trong bản V7 này.
-2. **Mọi document "theo năm học" đều gắn `schoolYear`** (ví dụ `"2027-2028"`),
+   hàng câu hỏi trong cùng 1 môn".
+2. **Trong 1 môn có 2 vai trò giáo viên** (field `teacherRole` ở `/users/{uid}`
+   — xem mục "Mời giáo viên xem lớp" dưới): **"admin"** (do Owner tạo, toàn
+   quyền) và **"viewer"** (do admin mời, chỉ xem đúng 1 lớp). App này dành
+   riêng cho giáo viên bộ môn — không có khái niệm giáo viên chủ nhiệm ở cấp
+   trường trong hệ thống.
+3. **Mọi document "theo năm học" đều gắn `schoolYear`** (ví dụ `"2027-2028"`),
    để hỗ trợ quy trình đóng năm học (archive → xoá) mà không đụng tới dữ liệu
    bền vững (ngân hàng câu hỏi, khung chương trình, tài khoản).
-3. **Không có fallback phân quyền theo domain email** (bài học từ
+4. **Không có fallback phân quyền theo domain email** (bài học từ
    `firestore.rules` của V6.3.8 — đã gây rủi ro bảo mật). Mọi quyền truy cập
-   đều tường minh qua `ownerTeacherId` / `createdBy` đối chiếu `request.auth.uid`.
+   đều tường minh qua `role`/`teacherRole` trong `/users/{uid}` đối chiếu
+   `request.auth.uid`.
 
 ## Cây collection (Firestore, top-level)
 
 ```
 /platformConfig/{singleton}         # Owner cấu hình chung: thang điểm, thời gian mặc định, theme
-/users/{uid}                        # role: "owner" | "teacher"; nếu teacher: subjectIds[] sở hữu
+/users/{uid}                        # role: "owner" | "teacher"; nếu teacher: teacherRole "admin"|"viewer" + subjectId (+ viewerClassId nếu viewer)
+/teacherInvites/{email}              # lời mời giáo viên xem-lớp còn hiệu lực (xem mục dưới) — top-level, id = email chuẩn hoá
 /subjects/{subjectId}                # tên môn, ownerTeacherId, trạng thái, schoolYearCurrent
   /curriculum/{nodeId}               # khung chương trình của môn (bền vững, không theo năm)
   /questionBank/{questionId}         # ngân hàng câu hỏi (bền vững, không theo năm)
@@ -82,6 +88,56 @@ So với V6.3.8 (collection phẳng cấp toàn trường, phải ghép
 năm học+khối+lớp+tuần thành 1 id dài), V7 đơn giản hơn: lưu trực tiếp dưới
 `classes/{classId}` vì lớp đã tự mang `subjectId`+`schoolYear`, không cần
 trường "khối" (V7 không khoá cứng khối lớp theo môn).
+
+## Mời giáo viên xem lớp (viewer)
+
+Quyết định 2026-10-08: mỗi môn có đúng **1 giáo viên admin** (do Owner tạo,
+toàn quyền) và có thể mời thêm **nhiều giáo viên viewer** — mỗi viewer chỉ
+xem (không sửa) đúng **1 lớp** được gán: danh sách học sinh, đề trắc nghiệm
+(xem + làm thử không ghi nhận kết quả), kết quả/tiến độ nộp bài (trắc
+nghiệm + tự luận theo tuần). Không có ngân hàng câu hỏi (chứa đáp án đúng),
+không tạo/sửa/xoá gì.
+
+**Tạo admin (Owner thực hiện)** — Cloud Function `createTeacherAdmin`
+(`functions/src/createTeacherAdmin.ts`, Admin SDK): tạo 1 tài khoản Firebase
+Auth email/password thật + document `subjects/{subjectId}` + hồ sơ
+`/users/{uid}` (`teacherRole: "admin"`) trong 1 lượt gọi. Mật khẩu tạm được
+trả về **một lần duy nhất** cho Owner tự gửi (app chưa có hệ thống email).
+Thay cho quy trình thủ công cũ (tạo tay trên Firebase Console/Auth rồi dán
+UID).
+
+**Mời viewer (admin thực hiện, tự phục vụ — không cần Owner)**:
+1. Admin nhập Gmail + chọn lớp trên `ClassDetailPage` → ghi trực tiếp
+   `teacherInvites/{email}` (`status: "pending"`, `subjectId`, `classId`,
+   `invitedBy`) — Firestore rules chỉ cho admin của đúng `subjectId` tạo.
+2. Giáo viên được mời bấm "Đăng nhập bằng Google" (`LoginPage.tsx`) —
+   **dùng Gmail cá nhân, không có mật khẩu riêng do app cấp**.
+3. Ngay sau khi đăng nhập Google, client gọi Cloud Function
+   `claimTeacherInvite` (`functions/src/claimTeacherInvite.ts`, Admin SDK).
+   Function dùng **email đã xác thực từ token đăng nhập**
+   (`request.auth.token.email`, không phải email client tự khai) để tra
+   `teacherInvites/{email}`; nếu tìm thấy và còn `"pending"`, tạo
+   `/users/{uid}` (`teacherRole: "viewer"`, `subjectId`, `viewerClassId`)
+   và đánh dấu lời mời `"accepted"`. Nếu không tìm thấy → báo lỗi rõ ràng
+   ("chưa được mời"), không tạo gì.
+
+Vì bước nhận lời mời khớp theo **email đã xác thực** (không phải uid — uid
+của Firebase Auth cho tài khoản Google chỉ sinh ra ở lần đăng nhập đầu
+tiên, trước đó hệ thống không thể biết trước), `teacherInvites` phải là
+collection **top-level** (không nằm dưới `subjects/{subjectId}`) để Cloud
+Function tra được ngay bằng `doc(email)` mà không cần biết trước
+`subjectId`.
+
+**Làm thử đề không ghi nhận kết quả**: Cloud Function `previewAssignment`
+(`functions/src/previewAssignment.ts`) dùng lại logic chấm của
+`submitAssignment` (xem `functions/src/gradeAssignment.ts`) để trả về điểm +
+đúng/sai từng câu, nhưng **không ghi gì vào `submissions`** — tự kiểm tra
+quyền trong function (đúng `subjectId`, viewer phải đúng `classId`) vì
+Admin SDK bỏ qua Firestore Rules.
+
+**Lưu ý deploy production**: phải bật **Google Sign-In** trong Firebase
+Console → Authentication → Sign-in method (ngoài Anonymous Authentication
+đã có) để giáo viên viewer đăng nhập được.
 
 ## Quy trình đóng năm học (tham khảo)
 

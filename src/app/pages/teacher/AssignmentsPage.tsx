@@ -22,6 +22,7 @@ export default function AssignmentsPage() {
   const { profile } = useAuth();
   const { config } = usePlatformConfig();
   const subjectId = profile?.subjectId;
+  const isViewer = profile?.teacherRole === "viewer";
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -44,9 +45,11 @@ export default function AssignmentsPage() {
 
       <div className="flex items-center justify-between mt-2 mb-6">
         <h1 className="text-xl font-semibold text-slate-900">Đề / bài giao</h1>
-        <button className="btn-primary" onClick={() => setDialogOpen(true)}>
-          + Tạo đề mới
-        </button>
+        {!isViewer && (
+          <button className="btn-primary" onClick={() => setDialogOpen(true)}>
+            + Tạo đề mới
+          </button>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -64,7 +67,7 @@ export default function AssignmentsPage() {
               </span>
             </div>
 
-            {a.status === "published" && (
+            {!isViewer && a.status === "published" && (
               <div className="mt-3 flex items-center gap-2">
                 <input
                   readOnly
@@ -82,7 +85,7 @@ export default function AssignmentsPage() {
             )}
 
             <div className="mt-3 flex gap-2">
-              {a.status === "draft" && (
+              {!isViewer && a.status === "draft" && (
                 <button
                   className="btn-primary text-sm"
                   onClick={() => publishAssignment(subjectId, a.id)}
@@ -90,7 +93,7 @@ export default function AssignmentsPage() {
                   Mở cho học sinh làm bài
                 </button>
               )}
-              {a.status === "published" && (
+              {!isViewer && a.status === "published" && (
                 <button
                   className="btn-secondary text-sm"
                   onClick={() => closeAssignment(subjectId, a.id)}
@@ -98,6 +101,9 @@ export default function AssignmentsPage() {
                   Đóng đề
                 </button>
               )}
+              <Link to={`/classes/${classId}/assignments/${a.id}/preview`} className="btn-secondary text-sm">
+                Xem thử đề
+              </Link>
               <Link to={`/assignments/${a.id}/results`} className="btn-secondary text-sm">
                 Xem kết quả
               </Link>

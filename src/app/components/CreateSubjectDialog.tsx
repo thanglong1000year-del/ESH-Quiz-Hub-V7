@@ -1,40 +1,79 @@
 import { useState, type FormEvent } from "react";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { db } from "@/firebase/client";
+import { createTeacherAdmin } from "@shared/lib/teacher-admin";
 
 /**
- * Chỉ Owner tạo môn học mới (đã chốt trong kế hoạch kiến trúc).
- * Lưu ý: việc tạo tài khoản giáo viên sở hữu môn này vẫn là bước riêng
- * (Owner tạo tài khoản + gán subjectId) — form này chỉ tạo khung môn học.
+ * Owner tạo môn học mới + tài khoản giáo viên admin sở hữu môn đó trong 1
+ * bước — qua Cloud Function `createTeacherAdmin` (Admin SDK, tạo thật tài
+ * khoản Firebase Auth). Thay cho quy trình thủ công cũ (tạo tay trên Firebase
+ * Console/Auth rồi dán UID).
+ *
+ * App chưa có hệ thống gửi email — mật khẩu tạm được trả về MỘT LẦN DUY NHẤT
+ * ngay sau khi tạo, Owner tự chuyển cho giáo viên (Zalo/tin nhắn...).
  */
 export default function CreateSubjectDialog({ onClose }: { onClose: () => void }) {
-  const [name, setName] = useState("");
-  const [ownerTeacherId, setOwnerTeacherId] = useState("");
+  const [subjectName, setSubjectName] = useState("");
+  const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ email: string; tempPassword: string } | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!name.trim() || !ownerTeacherId.trim()) {
-      setError("Vui lòng nhập đầy đủ tên môn và UID giáo viên sở hữu.");
+
+    if (!subjectName.trim() || !email.trim() || !displayName.trim()) {
+      setError("Vui lòng nhập đầy đủ tên môn, email và tên giáo viên.");
       return;
     }
+
     setSubmitting(true);
     try {
-      await addDoc(collection(db, "subjects"), {
-        name: name.trim(),
-        slug: name.trim().toLowerCase().replace(/\s+/g, "-"),
-        ownerTeacherId: ownerTeacherId.trim(),
-        status: "active",
-        createdAt: serverTimestamp(),
+      const res = await createTeacherAdmin({
+        subjectName: subjectName.trim(),
+        email: email.trim(),
+        displayName: displayName.trim(),
       });
-      onClose();
-    } catch {
-      setError("Không tạo được môn học. Thử lại sau.");
+      setResult({ email: res.email, tempPassword: res.tempPassword });
+    } catch (caught) {
+      const code = (caught as { code?: string })?.code;
+      if (code === "functions/already-exists") {
+        setError("Email này đã có tài khoản đăng nhập trong hệ thống.");
+      } else {
+        setError("Không tạo được môn học. Thử lại sau.");
+      }
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (result) {
+    return (
+      <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center p-4">
+        <div className="card w-full max-w-md space-y-4">
+          <h2 className="text-lg font-semibold text-success-500">Đã tạo môn học!</h2>
+          <p className="text-sm text-slate-600">
+            Gửi thông tin đăng nhập dưới đây cho giáo viên — mật khẩu này chỉ hiển thị
+            MỘT LẦN DUY NHẤT, không thể xem lại sau khi đóng cửa sổ này.
+          </p>
+          <div className="bg-surface-100 border border-surface-200 rounded-md p-3 space-y-1 text-sm">
+            <p>
+              <span className="text-slate-500">Email: </span>
+              <span className="font-mono">{result.email}</span>
+            </p>
+            <p>
+              <span className="text-slate-500">Mật khẩu tạm: </span>
+              <span className="font-mono font-medium">{result.tempPassword}</span>
+            </p>
+          </div>
+          <div className="flex justify-end">
+            <button className="btn-primary" onClick={onClose}>
+              Đã lưu, đóng lại
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -48,23 +87,35 @@ export default function CreateSubjectDialog({ onClose }: { onClose: () => void }
             </label>
             <input
               className="input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={subjectName}
+              onChange={(e) => setSubjectName(e.target.value)}
               placeholder="Ví dụ: Sinh học 10"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              UID giáo viên sở hữu
+              Tên giáo viên sở hữu (admin của môn)
             </label>
             <input
               className="input"
-              value={ownerTeacherId}
-              onChange={(e) => setOwnerTeacherId(e.target.value)}
-              placeholder="UID từ Firebase Authentication"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Ví dụ: Nguyễn Văn A"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Email đăng nhập của giáo viên
+            </label>
+            <input
+              type="email"
+              className="input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="giaovien@example.com"
             />
             <p className="text-xs text-slate-500 mt-1">
-              Tạo tài khoản giáo viên trước ở Firebase Authentication, rồi dán UID vào đây.
+              Hệ thống tự tạo tài khoản + mật khẩu tạm — bạn gửi lại cho giáo viên sau khi tạo.
             </p>
           </div>
           {error && <p className="text-sm text-danger-500">{error}</p>}

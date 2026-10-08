@@ -9,6 +9,18 @@
 
 export type Role = "owner" | "teacher";
 
+/**
+ * Vai trò của giáo viên TRONG môn (chỉ có ý nghĩa khi role === "teacher"):
+ * - "admin": giáo viên sở hữu môn (tạo bởi Owner) — toàn quyền: ngân hàng câu
+ *   hỏi, lớp học, đề bài, mời thêm giáo viên khác vào môn mình.
+ * - "viewer": giáo viên được admin mời — chỉ xem (không sửa) đúng 1 lớp được
+ *   gán: danh sách học sinh, đề trắc nghiệm (xem + làm thử không ghi nhận
+ *   kết quả), kết quả/tiến độ nộp bài (trắc nghiệm + tự luận theo tuần).
+ *   Đăng nhập bằng tài khoản Gmail cá nhân (Google Sign-In), không có mật
+ *   khẩu riêng do app cấp.
+ */
+export type TeacherRole = "admin" | "viewer";
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -16,7 +28,35 @@ export interface UserProfile {
   role: Role;
   /** Chỉ có ý nghĩa khi role === "teacher". Hiện tại 1 giáo viên sở hữu đúng 1 môn. */
   subjectId?: string;
+  /** Chỉ có ý nghĩa khi role === "teacher". */
+  teacherRole?: TeacherRole;
+  /** Chỉ có ý nghĩa khi teacherRole === "viewer" — đúng 1 lớp được xem. */
+  viewerClassId?: string;
   createdAt: string; // ISO timestamp
+}
+
+/**
+ * Lời mời giáo viên xem-lớp (viewer) — admin của môn tạo trực tiếp từ client
+ * (xem firestore.rules: chỉ admin của đúng subjectId mới tạo được). Giáo viên
+ * được mời đăng nhập bằng Gmail cá nhân; Cloud Function `claimTeacherInvite`
+ * (Admin SDK) sẽ tìm đúng document này theo email đã xác thực của họ và tạo
+ * `/users/{uid}` tương ứng — xem docs/DATA_MODEL.md mục "Mời giáo viên xem lớp".
+ *
+ * Doc id = email đã chuẩn hoá (lowercase, trim) — mỗi email chỉ có 1 lời mời
+ * đang hoạt động tại một thời điểm.
+ */
+export interface TeacherInvite {
+  id: string; // = email chuẩn hoá
+  email: string;
+  subjectId: string;
+  classId: string;
+  invitedBy: string; // uid của admin đã mời
+  status: "pending" | "accepted";
+  acceptedUid?: string;
+  /** Tên hiển thị Google của người đã nhận lời mời — để admin xem mà không cần đọc /users/{uid} chéo. */
+  acceptedDisplayName?: string;
+  acceptedAt?: string;
+  createdAt: string;
 }
 
 export interface PlatformConfig {

@@ -22,6 +22,7 @@ export default function WrittenSubmissionsPage() {
   const { profile } = useAuth();
   const { config } = usePlatformConfig();
   const subjectId = profile?.subjectId;
+  const isViewer = profile?.teacherRole === "viewer";
 
   const [students, setStudents] = useState<Student[]>([]);
   const [weeks, setWeeks] = useState<WrittenWeek[]>([]);
@@ -102,61 +103,63 @@ export default function WrittenSubmissionsPage() {
         </p>
       </div>
 
-      <div className="card mb-6 space-y-3">
-        <h2 className="font-medium text-slate-900">Tuần có giao bài tự luận</h2>
+      {!isViewer && (
+        <div className="card mb-6 space-y-3">
+          <h2 className="font-medium text-slate-900">Tuần có giao bài tự luận</h2>
 
-        <form className="flex flex-wrap items-end gap-3" onSubmit={handleAddWeek}>
-          <label className="text-sm">
-            <span className="block text-slate-700 mb-1">Tuần (1–{WRITTEN_SUBMISSION_MAX_WEEK})</span>
-            <input
-              type="number"
-              min={1}
-              max={WRITTEN_SUBMISSION_MAX_WEEK}
-              className="input w-24"
-              value={weekInput}
-              onChange={(e) => setWeekInput(e.target.value)}
-            />
-          </label>
-          <label className="text-sm flex-1 min-w-[180px]">
-            <span className="block text-slate-700 mb-1">Tiêu đề (tuỳ chọn)</span>
-            <input
-              type="text"
-              className="input"
-              value={titleInput}
-              onChange={(e) => setTitleInput(e.target.value)}
-              placeholder="Ví dụ: Tự luận chương 2"
-            />
-          </label>
-          <button className="btn-primary" type="submit" disabled={savingWeek}>
-            {savingWeek ? "Đang lưu…" : "Thêm tuần"}
-          </button>
-        </form>
+          <form className="flex flex-wrap items-end gap-3" onSubmit={handleAddWeek}>
+            <label className="text-sm">
+              <span className="block text-slate-700 mb-1">Tuần (1–{WRITTEN_SUBMISSION_MAX_WEEK})</span>
+              <input
+                type="number"
+                min={1}
+                max={WRITTEN_SUBMISSION_MAX_WEEK}
+                className="input w-24"
+                value={weekInput}
+                onChange={(e) => setWeekInput(e.target.value)}
+              />
+            </label>
+            <label className="text-sm flex-1 min-w-[180px]">
+              <span className="block text-slate-700 mb-1">Tiêu đề (tuỳ chọn)</span>
+              <input
+                type="text"
+                className="input"
+                value={titleInput}
+                onChange={(e) => setTitleInput(e.target.value)}
+                placeholder="Ví dụ: Tự luận chương 2"
+              />
+            </label>
+            <button className="btn-primary" type="submit" disabled={savingWeek}>
+              {savingWeek ? "Đang lưu…" : "Thêm tuần"}
+            </button>
+          </form>
 
-        {weekError && <p className="text-sm text-danger-500">{weekError}</p>}
+          {weekError && <p className="text-sm text-danger-500">{weekError}</p>}
 
-        <div className="flex flex-wrap gap-2 pt-1">
-          {weeks.map((w) => (
-            <span
-              key={w.id}
-              className="inline-flex items-center gap-1 text-xs bg-surface-100 border border-surface-200 rounded-full px-3 py-1"
-            >
-              Tuần {w.week}
-              {w.title ? ` · ${w.title}` : ""}
-              <button
-                type="button"
-                className="text-danger-500 hover:underline ml-1"
-                onClick={() => handleRemoveWeek(w.id)}
-                aria-label={`Xoá tuần ${w.week}`}
+          <div className="flex flex-wrap gap-2 pt-1">
+            {weeks.map((w) => (
+              <span
+                key={w.id}
+                className="inline-flex items-center gap-1 text-xs bg-surface-100 border border-surface-200 rounded-full px-3 py-1"
               >
-                ×
-              </button>
-            </span>
-          ))}
-          {weeks.length === 0 && (
-            <p className="text-sm text-slate-500">Lớp này chưa có tuần tự luận nào.</p>
-          )}
+                Tuần {w.week}
+                {w.title ? ` · ${w.title}` : ""}
+                <button
+                  type="button"
+                  className="text-danger-500 hover:underline ml-1"
+                  onClick={() => handleRemoveWeek(w.id)}
+                  aria-label={`Xoá tuần ${w.week}`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {weeks.length === 0 && (
+              <p className="text-sm text-slate-500">Lớp này chưa có tuần tự luận nào.</p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="card overflow-x-auto">
         <h2 className="font-medium text-slate-900 mb-3">Bảng nộp bài tự luận</h2>
@@ -198,7 +201,7 @@ export default function WrittenSubmissionsPage() {
                             type="checkbox"
                             aria-label={`${student.fullName} nộp bài tuần ${w.week}`}
                             checked={checked}
-                            disabled={togglingKey === key}
+                            disabled={isViewer || togglingKey === key}
                             onChange={(e) => handleToggle(student, w.week, e.target.checked)}
                           />
                         </td>

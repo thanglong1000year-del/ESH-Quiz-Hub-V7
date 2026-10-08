@@ -1,12 +1,16 @@
 import { useState, type FormEvent } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { useNavigate } from "react-router-dom";
+import { GoogleAuthProvider, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { auth } from "@/firebase/client";
+import { claimTeacherInvite } from "@shared/lib/teacher-invites";
 
 export default function LoginPage() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -14,10 +18,45 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      navigate("/", { replace: true });
     } catch {
       setError("Email hoặc mật khẩu không đúng.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  /**
+   * Dành cho giáo viên được mời (viewer) — đăng nhập bằng Gmail cá nhân,
+   * không có mật khẩu riêng do app cấp (xem docs/DATA_MODEL.md). Sau khi
+   * đăng nhập Google thành công, auth-context.tsx tự phát hiện chưa có hồ sơ
+   * `/users/{uid}` và gọi `claimTeacherInvite` — nhưng gọi luôn ở đây để báo
+   * lỗi ngay nếu email chưa được mời, thay vì để người dùng kẹt ở trang trắng.
+   */
+  async function handleGoogleSignIn() {
+    setError(null);
+    setGoogleSubmitting(true);
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+      await claimTeacherInvite().catch((caught) => {
+        // "already-exists" nghĩa là hồ sơ đã có từ trước (admin, hoặc viewer
+        // đã nhận lời mời ở lần đăng nhập trước) — auth-context sẽ tự tải
+        // hồ sơ hiện có, không cần coi là lỗi.
+        const code = (caught as { code?: string })?.code;
+        if (code !== "functions/already-exists") throw caught;
+      });
+      navigate("/", { replace: true });
+    } catch (caught) {
+      const code = (caught as { code?: string })?.code;
+      if (code === "functions/not-found") {
+        setError(
+          "Email Gmail này chưa được giáo viên quản trị môn mời. Liên hệ giáo viên quản trị môn của bạn."
+        );
+      } else if (code !== "auth/popup-closed-by-user") {
+        setError("Đăng nhập Google không thành công. Thử lại sau.");
+      }
+    } finally {
+      setGoogleSubmitting(false);
     }
   }
 
@@ -60,6 +99,24 @@ export default function LoginPage() {
             {submitting ? "Đang đăng nhập…" : "Đăng nhập"}
           </button>
         </form>
+
+        <div className="flex items-center gap-3 my-4">
+          <div className="flex-1 border-t border-surface-200" />
+          <span className="text-xs text-slate-400">hoặc</span>
+          <div className="flex-1 border-t border-surface-200" />
+        </div>
+
+        <button
+          type="button"
+          className="btn-secondary w-full"
+          disabled={googleSubmitting}
+          onClick={handleGoogleSignIn}
+        >
+          {googleSubmitting ? "Đang đăng nhập…" : "Đăng nhập bằng Google"}
+        </button>
+        <p className="text-xs text-slate-400 text-center mt-2">
+          Dành cho giáo viên được mời xem lớp — dùng đúng Gmail đã được mời.
+        </p>
       </div>
     </div>
   );

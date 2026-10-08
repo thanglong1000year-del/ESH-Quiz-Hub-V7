@@ -18,7 +18,10 @@ trình tại [tài liệu kiến trúc](https://claude.ai/code/artifact/7498db22
    design system); giáo viên tự soạn câu hỏi/đề thi, tự quản lý lớp/học sinh
    trong môn mình, không cần Owner duyệt từng bước.
 3. **Không fallback phân quyền theo domain email** (rủi ro bảo mật đã có ở
-   V6.3.8) — mọi quyền đều tường minh qua `role` + `ownerTeacherId`.
+   V6.3.8) — mọi quyền đều tường minh qua `role`/`teacherRole` trong
+   `/users/{uid}`. Mỗi môn có đúng 1 giáo viên **admin** (do Owner tạo, toàn
+   quyền) và có thể có nhiều giáo viên **viewer** (được admin mời, chỉ xem
+   đúng 1 lớp — xem `docs/DATA_MODEL.md`).
 4. **Có môi trường sandbox cho dev** — `vite dev` mặc định nối Firebase
    Emulator Suite, không bao giờ đụng dữ liệu production (V6.3.8 thiếu điều
    này hoàn toàn).
@@ -49,15 +52,20 @@ Hướng dẫn chạy dev: [`docs/DEV_SETUP.md`](docs/DEV_SETUP.md).
 - [x] Học sinh làm bài qua link công khai (tài khoản ẩn danh, không cần đăng ký) — chấm điểm trắc nghiệm **server-side** qua Cloud Function `submitAssignment` để không lộ đáp án đúng cho client
 - [x] Giáo viên xem kết quả bài làm theo đề
 - [x] Bài tập tự luận — tick học sinh đã nộp bài theo từng tuần (không chấm điểm/nhận xét, kế thừa mô hình đã sửa ở V6.3.8)
-- [ ] Điểm danh
+- [x] Owner tạo tài khoản giáo viên **admin** trực tiếp từ UI (Cloud Function `createTeacherAdmin` — tạo tài khoản Auth thật + trả mật khẩu tạm 1 lần, không cần tạo tay qua Firebase Console nữa)
+- [x] Giáo viên admin mời thêm giáo viên **viewer** xem đúng 1 lớp (đăng nhập bằng Gmail cá nhân, chỉ xem — không sửa; xem thử đề không ghi nhận kết quả) — xem mục "Mời giáo viên xem lớp" trong `docs/DATA_MODEL.md`
+- [ ] ~~Điểm danh~~ (đã bỏ khỏi phạm vi theo quyết định của Owner — không triển khai)
 - [ ] Báo cáo/campaign PDF + email (để Giai đoạn sau theo lộ trình đã chốt)
-- [ ] Trang Owner tạo tài khoản giáo viên (hiện phải tạo thủ công qua Firebase Console/Auth rồi dán UID)
 
 ### Lưu ý khi deploy production
 
-**Bật Anonymous Authentication** trong Firebase Console → Authentication →
-Sign-in method — bắt buộc để học sinh làm bài qua link công khai (không cần
-tài khoản). Emulator Suite đã bật sẵn, không cần làm gì thêm khi dev.
+- **Bật Anonymous Authentication** trong Firebase Console → Authentication →
+  Sign-in method — bắt buộc để học sinh làm bài qua link công khai (không cần
+  tài khoản).
+- **Bật Google Sign-In** (cùng mục trên) — bắt buộc để giáo viên **viewer**
+  được mời đăng nhập bằng Gmail cá nhân.
+
+Emulator Suite đã bật sẵn cả hai, không cần làm gì thêm khi dev.
 
 ## Stack kỹ thuật
 

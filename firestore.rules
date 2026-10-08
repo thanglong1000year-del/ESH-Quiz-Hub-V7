@@ -3,12 +3,18 @@ rules_version = '2';
 // ESH Quiz Hub V7 — Firestore Rules
 //
 // Nguyên tắc (xem docs/DATA_MODEL.md):
-//   1. Mỗi subject là một không gian dữ liệu cô lập hoàn toàn, gắn với
-//      đúng 1 giáo viên sở hữu (ownerTeacherId). Không chia sẻ giữa các môn.
-//   2. KHÔNG có fallback theo domain email (bài học từ V6.3.8) — mọi quyền
-//      đều tường minh qua role trong /users/{uid} + ownerTeacherId đối chiếu
-//      request.auth.uid.
-//   3. Owner (vai trò nền tảng) có quyền đọc/ghi toàn bộ để vận hành, hỗ trợ,
+//   1. Mỗi subject là một không gian dữ liệu cô lập hoàn toàn. Không chia sẻ
+//      giữa các môn.
+//   2. Trong 1 môn có 2 vai trò giáo viên (field `teacherRole` ở /users/{uid},
+//      KHÔNG còn chỉ dựa vào subjects.ownerTeacherId như bản đầu):
+//        - "admin": do Owner tạo (Cloud Function `createTeacherAdmin`) —
+//          toàn quyền trong môn, mời thêm viewer.
+//        - "viewer": do admin mời (`teacherInvites` + Cloud Function
+//          `claimTeacherInvite`) — CHỈ đọc, giới hạn đúng 1 lớp
+//          (`viewerClassId`), không bao giờ có quyền ghi.
+//   3. KHÔNG có fallback theo domain email (bài học từ V6.3.8) — mọi quyền
+//      đều tường minh qua role/teacherRole trong /users/{uid}.
+//   4. Owner (vai trò nền tảng) có quyền đọc/ghi toàn bộ để vận hành, hỗ trợ,
 //      và chạy quy trình đóng năm học — nhưng mọi hành động của Owner trên
 //      dữ liệu môn học cụ thể nên đi qua Cloud Functions có audit log,
 //      không thao tác trực tiếp từ client trong production.
@@ -42,11 +48,33 @@ service cloud.firestore {
       return signedIn() && hasProfile() && myProfile().data.role == 'teacher';
     }
 
-    // Cô lập theo môn: chỉ giáo viên sở hữu CHÍNH môn đó (hoặc Owner) được truy cập.
+    // Giáo viên THUỘC đúng môn này (bất kể admin hay viewer).
+    function isSubjectMember(subjectId) {
+      return isTeacher() && myProfile().data.subjectId == subjectId;
+    }
+
+    // Admin của môn = giáo viên sở hữu (tạo bởi Owner) — toàn quyền trong môn,
+    // có thể mời thêm giáo viên viewer. Dựa vào teacherRole trong hồ sơ, KHÔNG
+    // còn dựa vào subjects.ownerTeacherId (vẫn giữ field đó để hiển thị/tương
+    // thích, nhưng rules không đọc lại subjects nữa — đỡ 1 lượt get()).
+    function isSubjectAdmin(subjectId) {
+      return isSubjectMember(subjectId) && myProfile().data.teacherRole == 'admin';
+    }
+
+    // Viewer của môn — chỉ xem, không ghi; phạm vi xem bị thu hẹp tiếp theo
+    // ĐÚNG 1 lớp qua isViewerOfClass().
+    function isSubjectViewer(subjectId) {
+      return isSubjectMember(subjectId) && myProfile().data.teacherRole == 'viewer';
+    }
+
+    function isViewerOfClass(subjectId, classId) {
+      return isSubjectViewer(subjectId) && myProfile().data.viewerClassId == classId;
+    }
+
+    // Toàn quyền trong môn: Owner hoặc admin của chính môn đó. Viewer KHÔNG
+    // được coi là "ownsSubject" — mọi quyền ghi trong môn đều loại viewer ra.
     function ownsSubject(subjectId) {
-      return isOwner() ||
-        (isTeacher() &&
-         get(/databases/$(database)/documents/subjects/$(subjectId)).data.ownerTeacherId == request.auth.uid);
+      return isOwner() || isSubjectAdmin(subjectId);
     }
 
     // --- Nền tảng ---
@@ -57,15 +85,23 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isOwner());
-      // Chỉ Owner tạo/sửa hồ sơ người dùng (tạo tài khoản giáo viên, gán môn)
-      // — giữ nguyên nguyên tắc đã chốt: Owner kiểm soát việc tạo giáo viên mới.
+      // Hồ sơ giáo viên (cả admin và viewer) CHỈ được tạo qua Cloud Function
+      // (Admin SDK, bỏ qua rules): `createTeacherAdmin` (Owner gọi) hoặc
+      // `claimTeacherInvite` (viewer tự nhận lời mời khi đăng nhập Google).
+      // Client không bao giờ write trực tiếp — chỉ Owner được phép sửa tay
+      // khi cần xử lý ngoại lệ. Admin của môn KHÔNG đọc trực tiếp hồ sơ
+      // viewer họ mời — tên/trạng thái hiển thị qua chính document
+      // `teacherInvites` (có sẵn `email`/`acceptedDisplayName`), tránh phải
+      // mở quyền đọc /users/{uid} chéo giữa các giáo viên.
       allow write: if isOwner();
     }
 
     // --- Môn học: gốc của cô lập dữ liệu ---
     match /subjects/{subjectId} {
-      allow read: if ownsSubject(subjectId);
-      // Chỉ Owner tạo môn học mới (đã chốt trong kế hoạch kiến trúc).
+      allow read: if ownsSubject(subjectId) || isSubjectViewer(subjectId);
+      // Tạo môn học (+ tài khoản admin giáo viên tương ứng) đi qua Cloud
+      // Function `createTeacherAdmin` (Admin SDK, bỏ qua rules) — Owner gọi
+      // từ UI, không ghi trực tiếp vào đây.
       allow create: if isOwner();
       allow update: if ownsSubject(subjectId);
       allow delete: if isOwner();
@@ -83,46 +119,60 @@ service cloud.firestore {
         allow read, write: if ownsSubject(subjectId);
       }
 
-      // Lớp học — theo năm học.
+      // Lớp học — theo năm học. Tách riêng allow read khỏi allow create/update
+      // (không dùng chung "allow read, write" kèm điều kiện request.resource
+      // nữa — request.resource chỉ có ý nghĩa cho ghi, trộn vào rule đọc dễ
+      // gây lỗi đánh giá). Viewer chỉ đọc được ĐÚNG lớp họ được gán.
       match /classes/{classId} {
-        allow read, write: if ownsSubject(subjectId)
+        allow read: if ownsSubject(subjectId) || isViewerOfClass(subjectId, classId);
+        allow create, update: if ownsSubject(subjectId)
           && request.resource.data.subjectId == subjectId;
+        allow delete: if ownsSubject(subjectId);
 
         match /students/{studentId} {
-          allow read, write: if ownsSubject(subjectId);
+          allow read: if ownsSubject(subjectId) || isViewerOfClass(subjectId, classId);
+          allow write: if ownsSubject(subjectId);
         }
 
         // Bài tập tự luận — chỉ tick nộp/chưa nộp theo tuần, không điểm số
         // hay nhận xét (xem docs/DATA_MODEL.md). Độc lập với assignments/
-        // submissions (đề trắc nghiệm) ở trên.
+        // submissions (đề trắc nghiệm) ở trên. Viewer chỉ xem.
         match /writtenWeeks/{weekId} {
-          allow read, write: if ownsSubject(subjectId);
+          allow read: if ownsSubject(subjectId) || isViewerOfClass(subjectId, classId);
+          allow write: if ownsSubject(subjectId);
         }
 
         match /writtenSubmissions/{submissionId} {
-          allow read, write: if ownsSubject(subjectId);
+          allow read: if ownsSubject(subjectId) || isViewerOfClass(subjectId, classId);
+          allow write: if ownsSubject(subjectId);
         }
       }
 
       // Đề/bài giao, bài làm, điểm danh — theo năm học.
       match /assignments/{assignmentId} {
-        // Giáo viên sở hữu môn: toàn quyền. Học sinh (bất kỳ ai có link, kể
-        // cả tài khoản ẩn danh): chỉ đọc khi đề đã "published" — dùng để
-        // hiển thị đề bài khi làm bài. KHÔNG được chứa đáp án đúng trong
-        // document này (xem `questionsSnapshot` — phải lược bỏ correctOptionIds
-        // khi tạo, chấm điểm thật diễn ra server-side qua Cloud Function
-        // `submitAssignment`, không qua client write trực tiếp).
+        // Giáo viên sở hữu môn: toàn quyền. Viewer: chỉ đọc đề của ĐÚNG lớp
+        // họ được gán (xem "làm thử không ghi nhận" qua Cloud Function
+        // `previewAssignment`, không phải qua write ở đây). Học sinh (bất kỳ
+        // ai có link, kể cả tài khoản ẩn danh): chỉ đọc khi đề đã "published"
+        // — dùng để hiển thị đề bài khi làm bài. KHÔNG được chứa đáp án đúng
+        // trong document này (xem `questionsSnapshot` — phải lược bỏ
+        // correctOptionIds khi tạo, chấm điểm thật diễn ra server-side qua
+        // Cloud Function `submitAssignment`, không qua client write trực tiếp).
         allow read: if ownsSubject(subjectId) ||
+          isViewerOfClass(subjectId, resource.data.classId) ||
           (signedIn() && resource.data.status == 'published');
         allow create, update, delete: if ownsSubject(subjectId);
       }
 
       match /submissions/{submissionId} {
-        // Giáo viên sở hữu môn đọc/ghi mọi bài làm trong môn mình. Học sinh
-        // KHÔNG ghi trực tiếp vào đây — nộp bài đi qua Cloud Function
-        // `submitAssignment` (Admin SDK, bỏ qua rules) để chấm điểm server-side
-        // và tránh lộ đáp án đúng cho client.
-        allow read, write: if ownsSubject(subjectId);
+        // Giáo viên sở hữu môn đọc/ghi mọi bài làm trong môn mình. Viewer chỉ
+        // đọc bài làm của ĐÚNG lớp họ được gán (xem tiến độ/kết quả), không
+        // ghi. Học sinh KHÔNG ghi trực tiếp vào đây — nộp bài đi qua Cloud
+        // Function `submitAssignment` (Admin SDK, bỏ qua rules) để chấm điểm
+        // server-side và tránh lộ đáp án đúng cho client.
+        allow read: if ownsSubject(subjectId) ||
+          isViewerOfClass(subjectId, resource.data.classId);
+        allow write: if ownsSubject(subjectId);
       }
 
       match /attendance/{recordId} {
@@ -136,6 +186,25 @@ service cloud.firestore {
         allow update: if false; // archive là immutable
         allow delete: if isOwner();
       }
+    }
+
+    // Lời mời giáo viên xem-lớp (viewer) — top-level (không nằm dưới
+    // subjects/{subjectId}) để Cloud Function `claimTeacherInvite` tra được
+    // trực tiếp theo email đã xác thực của người vừa đăng nhập Google, không
+    // cần biết trước subjectId. Doc id = email chuẩn hoá (xem core.ts).
+    //
+    // Chỉ admin của môn tạo/xoá được lời mời của CHÍNH môn mình. Chuyển trạng
+    // thái "pending" → "accepted" CHỈ do Cloud Function (Admin SDK, bỏ qua
+    // rules) thực hiện khi giáo viên được mời đăng nhập — client không bao
+    // giờ update trực tiếp.
+    match /teacherInvites/{inviteId} {
+      allow read: if ownsSubject(resource.data.subjectId);
+      allow create: if ownsSubject(request.resource.data.subjectId)
+        && request.resource.data.status == 'pending'
+        && request.resource.data.invitedBy == request.auth.uid
+        && request.resource.data.email == inviteId;
+      allow delete: if ownsSubject(resource.data.subjectId);
+      allow update: if false;
     }
   }
 }
