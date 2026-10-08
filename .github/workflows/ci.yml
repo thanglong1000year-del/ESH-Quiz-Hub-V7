@@ -32,7 +32,16 @@ jobs:
         run: npm run typecheck
 
       - name: Lint
-        run: npm run lint
+        run: |
+          set +e
+          npm run lint > lint-output.log 2>&1
+          code=$?
+          cat lint-output.log
+          if [ $code -ne 0 ]; then
+            SUMMARY=$(tail -c 3000 lint-output.log | tr '\n' ' ' | tr '%' ' ' | tr '\r' ' ')
+            echo "::error::Lint thất bại (exit $code). Output: ${SUMMARY}"
+            exit $code
+          fi
 
       - name: Build
         run: npm run build
