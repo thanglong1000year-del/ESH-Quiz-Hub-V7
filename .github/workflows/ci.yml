@@ -65,5 +65,19 @@ jobs:
         run: npm install -g firebase-tools
 
       - name: Kiểm tra cú pháp rules (không cần project thật)
+        env:
+          CI: "true"
         run: |
-          firebase emulators:exec --only firestore --project demo-ci -c ci-firebase.json "echo 'rules OK'"
+          set +e
+          firebase --config ci-firebase.json emulators:exec --only firestore --project demo-ci "echo 'rules OK'" \
+            > emulator-output.log 2>&1
+          code=$?
+          cat emulator-output.log
+          if [ -f firebase-debug.log ]; then
+            echo "----- firebase-debug.log (tail) -----"
+            tail -n 100 firebase-debug.log
+          fi
+          if [ $code -ne 0 ]; then
+            echo "::error::Firestore emulator exec thất bại (exit $code). Xem output phía trên trong log của step này."
+            exit $code
+          fi

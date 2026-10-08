@@ -6,12 +6,19 @@ import type { Assignment } from "@shared/types/core";
 
 type Phase = "loading" | "name" | "answering" | "submitting" | "done" | "error" | "unavailable";
 
+// `Assignment.questionsSnapshot` là `unknown[]` ở mức Firestore chung; phía
+// học sinh luôn nhận bản đã lược bỏ đáp án đúng, nên override lại thành
+// `SafeQuestion[]` bằng Omit (không dùng intersection trực tiếp — TS không
+// thu hẹp được phần tử mảng khi hai vế có element type khác nhau, dẫn tới
+// lỗi "is of type 'unknown'" khi .map()).
+type PublicAssignment = Omit<Assignment, "questionsSnapshot"> & {
+  questionsSnapshot: SafeQuestion[];
+};
+
 export default function TakeAssignmentPage() {
   const { subjectId, assignmentId } = useParams<{ subjectId: string; assignmentId: string }>();
   const [phase, setPhase] = useState<Phase>("loading");
-  const [assignment, setAssignment] = useState<
-    (Assignment & { questionsSnapshot: SafeQuestion[] }) | null
-  >(null);
+  const [assignment, setAssignment] = useState<PublicAssignment | null>(null);
   const [studentName, setStudentName] = useState("");
   const [answers, setAnswers] = useState<Record<string, string[] | string>>({});
   const [result, setResult] = useState<{ score: number | null } | null>(null);
@@ -30,7 +37,7 @@ export default function TakeAssignmentPage() {
           setPhase("unavailable");
           return;
         }
-        setAssignment(a as Assignment & { questionsSnapshot: SafeQuestion[] });
+        setAssignment(a as PublicAssignment);
         setPhase("name");
       })
       .catch(() => setPhase("unavailable"));
