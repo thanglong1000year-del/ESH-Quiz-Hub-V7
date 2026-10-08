@@ -1,0 +1,109 @@
+rules_version = '2';
+
+// ESH Quiz Hub V7 — Firestore Rules
+//
+// Nguyên tắc (xem docs/DATA_MODEL.md):
+//   1. Mỗi subject là một không gian dữ liệu cô lập hoàn toàn, gắn với
+//      đúng 1 giáo viên sở hữu (ownerTeacherId). Không chia sẻ giữa các môn.
+//   2. KHÔNG có fallback theo domain email (bài học từ V6.3.8) — mọi quyền
+//      đều tường minh qua role trong /users/{uid} + ownerTeacherId đối chiếu
+//      request.auth.uid.
+//   3. Owner (vai trò nền tảng) có quyền đọc/ghi toàn bộ để vận hành, hỗ trợ,
+//      và chạy quy trình đóng năm học — nhưng mọi hành động của Owner trên
+//      dữ liệu môn học cụ thể nên đi qua Cloud Functions có audit log,
+//      không thao tác trực tiếp từ client trong production.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isOwner() {
+      return signedIn() && myProfile().data.role == 'owner';
+    }
+
+    function isTeacher() {
+      return signedIn() && myProfile().data.role == 'teacher';
+    }
+
+    // Cô lập theo môn: chỉ giáo viên sở hữu CHÍNH môn đó (hoặc Owner) được truy cập.
+    function ownsSubject(subjectId) {
+      return isOwner() ||
+        (isTeacher() &&
+         get(/databases/$(database)/documents/subjects/$(subjectId)).data.ownerTeacherId == request.auth.uid);
+    }
+
+    // --- Nền tảng ---
+    match /platformConfig/{doc} {
+      allow read: if signedIn();
+      allow write: if isOwner();
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isOwner());
+      // Chỉ Owner tạo/sửa hồ sơ người dùng (tạo tài khoản giáo viên, gán môn)
+      // — giữ nguyên nguyên tắc đã chốt: Owner kiểm soát việc tạo giáo viên mới.
+      allow write: if isOwner();
+    }
+
+    // --- Môn học: gốc của cô lập dữ liệu ---
+    match /subjects/{subjectId} {
+      allow read: if ownsSubject(subjectId);
+      // Chỉ Owner tạo môn học mới (đã chốt trong kế hoạch kiến trúc).
+      allow create: if isOwner();
+      allow update: if ownsSubject(subjectId);
+      allow delete: if isOwner();
+
+      // Ngân hàng câu hỏi — bền vững, chỉ giáo viên sở hữu môn.
+      match /questionBank/{questionId} {
+        allow read: if ownsSubject(subjectId);
+        allow create, update: if ownsSubject(subjectId)
+          && request.resource.data.subjectId == subjectId;
+        allow delete: if ownsSubject(subjectId);
+      }
+
+      // Khung chương trình — bền vững.
+      match /curriculum/{nodeId} {
+        allow read, write: if ownsSubject(subjectId);
+      }
+
+      // Lớp học — theo năm học.
+      match /classes/{classId} {
+        allow read, write: if ownsSubject(subjectId)
+          && request.resource.data.subjectId == subjectId;
+
+        match /students/{studentId} {
+          allow read, write: if ownsSubject(subjectId);
+        }
+      }
+
+      // Đề/bài giao, bài làm, điểm danh — theo năm học.
+      match /assignments/{assignmentId} {
+        allow read, write: if ownsSubject(subjectId);
+      }
+
+      match /submissions/{submissionId} {
+        // Giáo viên sở hữu môn đọc/ghi mọi bài làm trong môn mình.
+        allow read, write: if ownsSubject(subjectId);
+      }
+
+      match /attendance/{recordId} {
+        allow read, write: if ownsSubject(subjectId);
+      }
+
+      // Snapshot lưu trữ khi đóng năm học — chỉ đọc sau khi tạo, Owner xoá khi hết hạn.
+      match /archives/{schoolYear} {
+        allow read: if ownsSubject(subjectId);
+        allow create: if isOwner();
+        allow update: if false; // archive là immutable
+        allow delete: if isOwner();
+      }
+    }
+  }
+}
