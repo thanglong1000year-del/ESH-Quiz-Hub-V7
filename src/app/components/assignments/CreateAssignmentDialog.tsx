@@ -70,7 +70,11 @@ export default function CreateAssignmentDialog({
   return (
     <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center p-4 z-10">
       <div className="card w-full max-w-lg max-h-[85vh] overflow-y-auto">
-        <h2 className="text-lg font-semibold mb-4">Tạo đề bài mới</h2>
+        <h2 className="text-lg font-semibold mb-1">Tạo đề bài mới</h2>
+        <p className="text-xs text-slate-500 mb-4">
+          💡 Đề tạo xong ở trạng thái "chưa mở" — học sinh chỉ làm được bài sau khi bạn bấm "Mở cho
+          học sinh làm bài" và đúng trong khoảng thời gian Mở lúc/Đóng lúc bên dưới.
+        </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Tên đề bài</label>

@@ -134,6 +134,13 @@ export default function QuestionForm({ subjectId, createdBy, editing, onDone, on
         )}
       </div>
 
+      {!editing && (
+        <p className="text-xs text-slate-500 -mt-2">
+          💡 Câu "Trắc nghiệm" được hệ thống tự chấm điểm khi học sinh nộp bài. Câu "Tự luận" học
+          sinh gõ câu trả lời tự do — không tự động chấm điểm, giáo viên tự xem khi chấm bài.
+        </p>
+      )}
+
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">Nội dung câu hỏi</label>
         <textarea

@@ -10,6 +10,7 @@ import {
 import type { Question } from "@shared/types/core";
 import QuestionForm from "@/app/components/questions/QuestionForm";
 import QuestionListItem from "@/app/components/questions/QuestionListItem";
+import BulkImportQuestionsPanel from "@/app/components/questions/BulkImportQuestionsPanel";
 
 export default function QuestionBankPage() {
   const { profile } = useAuth();
@@ -19,6 +20,7 @@ export default function QuestionBankPage() {
   const [trashed, setTrashed] = useState<Question[]>([]);
   const [showTrash, setShowTrash] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [editing, setEditing] = useState<Question | null>(null);
   const [search, setSearch] = useState("");
 
@@ -53,17 +55,37 @@ export default function QuestionBankPage() {
           </p>
         </div>
         {!showTrash && (
-          <button
-            className="btn-primary"
-            onClick={() => {
-              setEditing(null);
-              setFormOpen(true);
-            }}
-          >
-            + Thêm câu hỏi
-          </button>
+          <div className="flex gap-2">
+            <button
+              className="btn-secondary"
+              onClick={() => {
+                setFormOpen(false);
+                setBulkOpen(true);
+              }}
+            >
+              Nhập hàng loạt
+            </button>
+            <button
+              className="btn-primary"
+              onClick={() => {
+                setBulkOpen(false);
+                setEditing(null);
+                setFormOpen(true);
+              }}
+            >
+              + Thêm câu hỏi
+            </button>
+          </div>
         )}
       </div>
+
+      {!showTrash && !formOpen && !bulkOpen && (
+        <p className="text-xs text-slate-500 mb-4">
+          💡 Soạn từng câu bằng "+ Thêm câu hỏi", hoặc dán nhiều câu cùng lúc từ Excel/Sheets bằng
+          "Nhập hàng loạt". Mỗi câu được Cloud Function tự kiểm tra (trùng lặp, đáp án hợp lệ…) —
+          chỉ câu "Hợp lệ" mới chọn được khi tạo đề.
+        </p>
+      )}
 
       <div className="flex items-center gap-3 mb-4">
         <input
@@ -88,6 +110,16 @@ export default function QuestionBankPage() {
             editing={editing}
             onDone={() => setFormOpen(false)}
             onCancel={() => setFormOpen(false)}
+          />
+        </div>
+      )}
+
+      {bulkOpen && (
+        <div className="mb-6">
+          <BulkImportQuestionsPanel
+            subjectId={subjectId}
+            createdBy={profile.uid}
+            onCancel={() => setBulkOpen(false)}
           />
         </div>
       )}

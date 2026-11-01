@@ -31,7 +31,7 @@
   /curriculum/{nodeId}               # khung chương trình của môn (bền vững, không theo năm)
   /questionBank/{questionId}         # ngân hàng câu hỏi (bền vững, không theo năm)
   /classes/{classId}                 # lớp — gắn schoolYear
-    /students/{studentId}            # có thêm studentEmail/parentEmail (tuỳ chọn, cho Báo cáo/campaign)
+    /students/{studentId}            # có thêm studentEmail/parentEmails (tuỳ chọn, cho Báo cáo/campaign)
     /writtenWeeks/{weekId}           # tuần có giao bài tự luận (xem mục dưới)
     /writtenSubmissions/{studentId}  # tick nộp/chưa nộp bài tự luận theo tuần
     /reportCampaigns/{campaignId}    # Báo cáo/campaign — xem mục dưới
@@ -160,6 +160,43 @@ email — app không gửi gì, không cần SMTP, không tốn phí tin nhắn.
 - "Đổi link" = tạo `viewToken` mới, link cũ lập tức hết hiệu lực (dùng khi
   gửi nhầm người).
 
+## Đăng nhập phụ huynh bằng email/mật khẩu — kênh thứ 2, chống giả mạo link
+
+Quyết định 2026-11-01: lừa đảo gửi link giả mạo đang phổ biến, nên bên cạnh
+link `viewToken` ở trên, V7 thêm kênh phụ huynh tự đăng ký tài khoản email/
+mật khẩu trên chính app — không phụ thuộc vào 1 đường link nhận qua Zalo/
+SMS. Route công khai `/parent/login` (`ParentLoginPage.tsx`), dashboard
+`/parent` (`ParentDashboardPage.tsx`, yêu cầu đăng nhập qua `RequireAuth`).
+
+- Đăng ký (`createUserWithEmailAndPassword`) → Firebase gửi email xác
+  minh (`sendEmailVerification`) → phụ huynh bấm link xác minh → đăng nhập
+  lại → client gọi callable `syncParentProfile`.
+- `syncParentProfile` (Admin SDK) BẮT BUỘC `request.auth.token.email_verified
+  === true` (dùng email đã xác thực từ token, không dùng email client tự
+  khai — giống `claimTeacherInvite` với Google Sign-In), rồi quét
+  `collectionGroup("students")` theo `parentEmails` (`array-contains` — mảng
+  vì 1 học sinh có thể có nhiều email phụ huynh, ví dụ cả bố và mẹ cùng
+  đăng nhập được; field này tự động được đánh index đơn, không cần cấu
+  hình thêm `firestore.indexes.json`). Mỗi học sinh khớp được tạo thành 1
+  `ParentChildRef` (tên hiển thị only, không có số liệu), ghi vào
+  `/users/{uid}` với `role: "parent"`.
+- Email luôn được chuẩn hoá chữ thường khi LƯU (teacher nhập qua
+  `bulk-import.ts`/`updateStudentContact`) và khi SO KHỚP (`syncParentProfile`,
+  `getChildProgressForParent`) — Firestore `where ==` không tự so sánh
+  không phân biệt hoa/thường.
+- Xem số liệu 1 con: callable `getChildProgressForParent` — nhận
+  `{subjectId, classId, studentId}`, tự đọc lại `parentEmails` hiện tại của
+  đúng học sinh đó và so với email đã xác thực của người gọi; KHÔNG tin
+  danh sách `children` lưu trên `/users/{uid}` (chỉ dùng để vẽ UI, có thể
+  cũ nếu giáo viên vừa đổi email phụ huynh) — nên dù dữ liệu hiển thị cũ,
+  không thể đọc được dữ liệu học sinh đã bị đổi/xoá email phụ huynh.
+- 2 callable trên và `getStudentProgress` (link `viewToken`) dùng chung
+  phần tổng hợp số liệu ở `functions/src/progressView.ts` — tránh lặp code,
+  mỗi callable chỉ tự chịu trách nhiệm phần xác thực quyền truy cập riêng.
+- Không cần sửa `firestore.rules`: phụ huynh không bao giờ đọc Firestore
+  trực tiếp từ client (trừ chính `/users/{uid}` của họ, đã được phép đọc
+  theo rule có sẵn `request.auth.uid == uid`) — mọi số liệu đi qua callable.
+
 ## Báo cáo/campaign — nhắc giờ gửi email (tuỳ chọn)
 
 Chỉ dùng khi trường muốn đẩy email chủ động và chấp nhận cài extension
@@ -196,7 +233,7 @@ kiến trúc đa môn — xem `functions/src/reportCampaign.ts`.
   `ReportCampaignsPage.tsx` — V6.3.8 có ghi lý do lỗi thật vào Firestore
   nhưng UI (`ReportCampaignPanel.tsx`) chưa bao giờ hiện ra, khiến giáo viên
   không biết vì sao chiến dịch fail.
-- Học sinh/phụ huynh cần được khai báo `studentEmail`/`parentEmail` trên
+- Học sinh/phụ huynh cần được khai báo `studentEmail`/`parentEmails` trên
   `ClassDetailPage` (nút "Email" cạnh mỗi học sinh) trước khi có thể nhận
   báo cáo — chiến dịch bỏ qua (không fail) học sinh nào thiếu cả 2 email
   phù hợp với `recipientMode` đã chọn.

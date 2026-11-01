@@ -45,16 +45,22 @@ export default function ClassesPage() {
         <p className="text-sm text-slate-500">Năm học hiện hành: {schoolYear}</p>
       </div>
 
-      <form onSubmit={handleCreate} className="card flex gap-2 mb-6">
-        <input
-          className="input flex-1"
-          placeholder="Tên lớp, ví dụ: 10A1"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <button type="submit" disabled={submitting} className="btn-primary whitespace-nowrap">
-          + Tạo lớp
-        </button>
+      <form onSubmit={handleCreate} className="card space-y-2 mb-6">
+        <p className="text-xs text-slate-500">
+          💡 Mỗi lớp là một nhóm học sinh riêng trong năm học này — sau khi tạo, bấm vào lớp để
+          thêm học sinh, soạn đề, xem kết quả.
+        </p>
+        <div className="flex gap-2">
+          <input
+            className="input flex-1"
+            placeholder="Tên lớp, ví dụ: 10A1"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <button type="submit" disabled={submitting} className="btn-primary whitespace-nowrap">
+            + Tạo lớp
+          </button>
+        </div>
       </form>
 
       <div className="grid sm:grid-cols-2 gap-3">

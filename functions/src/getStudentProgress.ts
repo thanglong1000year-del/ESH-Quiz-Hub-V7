@@ -2,7 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { timingSafeEqual } from "node:crypto";
-import { computeStudentProgress } from "./studentProgress.js";
+import { loadProgressView } from "./progressView.js";
 
 if (getApps().length === 0) {
   initializeApp();
@@ -41,60 +41,12 @@ export const getStudentProgress = onCall({ region: "asia-southeast1" }, async (r
   }
 
   const classRef = db.collection("subjects").doc(subjectId).collection("classes").doc(classId);
-  const [studentSnap, classSnap, subjectSnap] = await Promise.all([
-    classRef.collection("students").doc(studentId).get(),
-    classRef.get(),
-    db.collection("subjects").doc(subjectId).get(),
-  ]);
+  const studentSnap = await classRef.collection("students").doc(studentId).get();
 
   const student = studentSnap.data();
   if (!student?.viewToken || !tokensMatch(String(student.viewToken), token)) {
     throw new HttpsError("not-found", "Link không hợp lệ hoặc đã bị giáo viên thu hồi.");
   }
 
-  const [submissionsSnap, assignmentsSnap, writtenSnap, weeksSnap] = await Promise.all([
-    db
-      .collection("subjects")
-      .doc(subjectId)
-      .collection("submissions")
-      .where("classId", "==", classId)
-      .where("studentName", "==", student.fullName)
-      .get(),
-    db.collection("subjects").doc(subjectId).collection("assignments").where("classId", "==", classId).get(),
-    classRef.collection("writtenSubmissions").doc(studentId).get(),
-    classRef.collection("writtenWeeks").get(),
-  ]);
-
-  const titles = new Map(assignmentsSnap.docs.map((d) => [d.id, String(d.data().title ?? "")]));
-  const submissions = submissionsSnap.docs
-    .map((d) => d.data())
-    .map((s) => ({
-      title: titles.get(s.assignmentId) ?? "Đề đã xoá",
-      score: (s.score as number | null) ?? null,
-      maxScore: (s.maxScore as number) ?? 10,
-      submittedAt: String(s.submittedAt),
-    }))
-    .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
-
-  const ticked = (writtenSnap.data()?.weeks ?? {}) as Record<string, boolean>;
-  const weeks: Record<string, boolean> = {};
-  const writtenWeeks = weeksSnap.docs
-    .map((d) => d.data() as { week: number; title?: string })
-    .sort((a, b) => a.week - b.week)
-    .map((w) => {
-      weeks[String(w.week)] = ticked[String(w.week)] === true;
-      return { week: w.week, title: w.title ?? "", submitted: weeks[String(w.week)] };
-    });
-
-  return {
-    studentName: String(student.fullName),
-    className: String(classSnap.data()?.name ?? ""),
-    subjectName: String(subjectSnap.data()?.name ?? ""),
-    progress: computeStudentProgress(
-      submissions.map((s) => s.score),
-      weeks
-    ),
-    submissions,
-    writtenWeeks,
-  };
+  return loadProgressView(db, subjectId, classId, studentId, student);
 });

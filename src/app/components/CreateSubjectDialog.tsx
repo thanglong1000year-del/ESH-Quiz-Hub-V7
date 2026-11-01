@@ -79,7 +79,12 @@ export default function CreateSubjectDialog({ onClose }: { onClose: () => void }
   return (
     <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center p-4">
       <div className="card w-full max-w-md">
-        <h2 className="text-lg font-semibold mb-4">Tạo môn học mới</h2>
+        <h2 className="text-lg font-semibold mb-1">Tạo môn học mới</h2>
+        <p className="text-xs text-slate-500 mb-4">
+          💡 Mỗi môn là một không gian riêng biệt, hoàn toàn tách biệt với các môn khác — giáo viên
+          bạn chọn bên dưới sẽ là người toàn quyền quản lý môn này (ngân hàng câu hỏi, lớp học, đề
+          bài, mời thêm giáo viên khác vào môn của họ).
+        </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">

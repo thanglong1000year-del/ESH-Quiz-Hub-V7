@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { GoogleAuthProvider, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { auth } from "@/firebase/client";
 import { claimTeacherInvite } from "@shared/lib/teacher-invites";
@@ -116,6 +116,13 @@ export default function LoginPage() {
         </button>
         <p className="text-xs text-slate-400 text-center mt-2">
           Dành cho giáo viên được mời xem lớp — dùng đúng Gmail đã được mời.
+        </p>
+        <p className="text-xs text-slate-400 text-center mt-4">
+          Là phụ huynh?{" "}
+          <Link to="/parent/login" className="text-brand-500 hover:underline">
+            Xem tiến độ học tập của con tại đây
+          </Link>
+          .
         </p>
       </div>
     </div>

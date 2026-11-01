@@ -4,12 +4,14 @@ import { useAuth } from "@shared/lib/auth-context";
 import { usePlatformConfig } from "@shared/lib/platform";
 import {
   addStudentsBulk,
+  bulkUpdateParentEmails,
   progressLink,
   regenerateViewToken,
   removeStudent,
   subscribeStudents,
   updateStudentContact,
 } from "@shared/lib/classes";
+import { parseParentContactBulkText, parseStudentRosterBulkText } from "@shared/lib/bulk-import";
 import {
   inviteViewerTeacher,
   revokeInvite,
@@ -29,6 +31,12 @@ export default function ClassDetailPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [bulkInput, setBulkInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [bulkErrors, setBulkErrors] = useState<string[]>([]);
+
+  const [parentBulkInput, setParentBulkInput] = useState("");
+  const [parentBulkSubmitting, setParentBulkSubmitting] = useState(false);
+  const [parentBulkErrors, setParentBulkErrors] = useState<string[]>([]);
+  const [parentBulkResult, setParentBulkResult] = useState<string | null>(null);
 
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -51,14 +59,35 @@ export default function ClassDetailPage() {
   if (!subjectId || !classId) return null;
 
   async function handleAdd() {
-    const names = bulkInput.split("\n").filter((n) => n.trim());
-    if (names.length === 0) return;
+    const { items, errors } = parseStudentRosterBulkText(bulkInput);
+    setBulkErrors(errors);
+    if (items.length === 0) return;
     setSubmitting(true);
     try {
-      await addStudentsBulk(subjectId!, classId!, config.currentSchoolYear, names);
+      await addStudentsBulk(subjectId!, classId!, config.currentSchoolYear, items);
       setBulkInput("");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleParentBulkUpdate() {
+    const { items, errors } = parseParentContactBulkText(parentBulkInput);
+    setParentBulkErrors(errors);
+    setParentBulkResult(null);
+    if (items.length === 0) return;
+    setParentBulkSubmitting(true);
+    try {
+      const { matched, unmatched } = await bulkUpdateParentEmails(subjectId!, classId!, items);
+      setParentBulkResult(
+        `Đã cập nhật email phụ huynh cho ${matched} học sinh.` +
+          (unmatched.length > 0
+            ? ` Không tìm thấy tên: ${unmatched.join(", ")} — kiểm tra lại chính tả, dấu cách.`
+            : "")
+      );
+      setParentBulkInput("");
+    } finally {
+      setParentBulkSubmitting(false);
     }
   }
 
@@ -133,14 +162,27 @@ export default function ClassDetailPage() {
       {!isViewer && (
         <div className="card mb-6 space-y-2">
           <label className="block text-sm font-medium text-slate-700">
-            Thêm học sinh (mỗi dòng 1 tên — dán trực tiếp từ Excel/Sheets)
+            Thêm học sinh hàng loạt (mỗi dòng 1 học sinh)
           </label>
+          <p className="text-xs text-slate-500">
+            💡 Dán trực tiếp từ Excel/Sheets. Cách đơn giản nhất: mỗi dòng chỉ cần tên. Muốn thêm
+            luôn email thì mỗi dòng ghi <strong>Tên, Email học sinh, Email phụ huynh</strong> (email
+            có thể để trống, thêm sau cũng được). Có nhiều phụ huynh cùng muốn xem (ví dụ cả bố và
+            mẹ) thì ghi nhiều email cách nhau bằng dấu <strong>;</strong> trong cột cuối.
+          </p>
           <textarea
             className="input min-h-[100px]"
             value={bulkInput}
             onChange={(e) => setBulkInput(e.target.value)}
-            placeholder={"Nguyễn Văn A\nTrần Thị B"}
+            placeholder={"Nguyễn Văn A\nTrần Thị B, tranthib@gmail.com, bo@gmail.com;me@gmail.com"}
           />
+          {bulkErrors.length > 0 && (
+            <ul className="text-xs text-danger-500 list-disc pl-4">
+              {bulkErrors.map((e, i) => (
+                <li key={i}>{e}</li>
+              ))}
+            </ul>
+          )}
           <div className="flex justify-end">
             <button className="btn-primary" disabled={submitting} onClick={handleAdd}>
               {submitting ? "Đang thêm…" : "Thêm học sinh"}
@@ -155,11 +197,11 @@ export default function ClassDetailPage() {
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-slate-900">{s.fullName}</span>
-                {(s.studentEmail || s.parentEmail) && (
+                {(s.studentEmail || (s.parentEmails && s.parentEmails.length > 0)) && (
                   <span className="ml-2 text-xs text-slate-400">
                     {s.studentEmail && `HS: ${s.studentEmail}`}
-                    {s.studentEmail && s.parentEmail && " · "}
-                    {s.parentEmail && `PH: ${s.parentEmail}`}
+                    {s.studentEmail && s.parentEmails && s.parentEmails.length > 0 && " · "}
+                    {s.parentEmails && s.parentEmails.length > 0 && `PH: ${s.parentEmails.join(", ")}`}
                   </span>
                 )}
               </div>
@@ -216,6 +258,44 @@ export default function ClassDetailPage() {
           <p className="text-sm text-slate-500 text-center py-8">Lớp chưa có học sinh nào.</p>
         )}
       </div>
+
+      {!isViewer && students.length > 0 && (
+        <div className="card mb-6 space-y-2">
+          <h2 className="font-medium text-slate-900">Cập nhật email phụ huynh hàng loạt</h2>
+          <p className="text-xs text-slate-500">
+            💡 Dùng khi đã có danh sách lớp nhưng mới nhận được danh sách email phụ huynh sau — mỗi
+            dòng ghi <strong>Tên học sinh, Email phụ huynh</strong>, hệ thống tự khớp theo đúng tên đã
+            có trong lớp (không phân biệt hoa/thường) và THÊM VÀO (không xoá email đã có trước đó).
+            Có nhiều phụ huynh cùng muốn xem (ví dụ cả bố và mẹ) thì ghi nhiều email cách nhau bằng
+            dấu <strong>;</strong> trong cột email. Sau khi có email, phụ huynh có thể tự tạo tài
+            khoản đăng nhập xem kết quả tại trang "Dành cho phụ huynh" (an toàn hơn link, vì không
+            thể bị gửi giả mạo) — hoặc vẫn dùng link "Copy link phụ huynh" như trước, tuỳ ý.
+          </p>
+          <textarea
+            className="input min-h-[80px]"
+            value={parentBulkInput}
+            onChange={(e) => setParentBulkInput(e.target.value)}
+            placeholder={"Nguyễn Văn A, bo@gmail.com;me@gmail.com\nTrần Thị B, mehocsinhb@gmail.com"}
+          />
+          {parentBulkErrors.length > 0 && (
+            <ul className="text-xs text-danger-500 list-disc pl-4">
+              {parentBulkErrors.map((e, i) => (
+                <li key={i}>{e}</li>
+              ))}
+            </ul>
+          )}
+          {parentBulkResult && <p className="text-sm text-success-500">{parentBulkResult}</p>}
+          <div className="flex justify-end">
+            <button
+              className="btn-primary"
+              disabled={parentBulkSubmitting}
+              onClick={handleParentBulkUpdate}
+            >
+              {parentBulkSubmitting ? "Đang cập nhật…" : "Cập nhật email phụ huynh"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {!isViewer && (
         <div className="card space-y-3">
@@ -281,16 +361,16 @@ export default function ClassDetailPage() {
   );
 }
 
-/** Form nhỏ sửa email học sinh/phụ huynh — dữ liệu dùng để gửi Báo cáo/campaign. */
+/** Form nhỏ sửa email học sinh/phụ huynh — dữ liệu dùng để gửi Báo cáo/campaign và cho phụ huynh đăng nhập. */
 function StudentContactForm({
   student,
   onSave,
 }: {
   student: Student;
-  onSave: (contact: { studentEmail?: string; parentEmail?: string }) => Promise<void>;
+  onSave: (contact: { studentEmail?: string; parentEmails: string[] }) => Promise<void>;
 }) {
   const [studentEmail, setStudentEmail] = useState(student.studentEmail ?? "");
-  const [parentEmail, setParentEmail] = useState(student.parentEmail ?? "");
+  const [parentEmailsText, setParentEmailsText] = useState((student.parentEmails ?? []).join(", "));
   const [saving, setSaving] = useState(false);
 
   return (
@@ -305,12 +385,14 @@ function StudentContactForm({
         />
       </div>
       <div>
-        <label className="block text-xs text-slate-500">Email phụ huynh</label>
+        <label className="block text-xs text-slate-500">
+          Email phụ huynh (cách nhau bằng dấu phẩy nếu có nhiều)
+        </label>
         <input
-          type="email"
           className="input text-sm"
-          value={parentEmail}
-          onChange={(e) => setParentEmail(e.target.value)}
+          placeholder="bo@gmail.com, me@gmail.com"
+          value={parentEmailsText}
+          onChange={(e) => setParentEmailsText(e.target.value)}
         />
       </div>
       <button
@@ -319,7 +401,11 @@ function StudentContactForm({
         onClick={async () => {
           setSaving(true);
           try {
-            await onSave({ studentEmail, parentEmail });
+            const parentEmails = parentEmailsText
+              .split(/[,;]/)
+              .map((e) => e.trim())
+              .filter(Boolean);
+            await onSave({ studentEmail, parentEmails });
           } finally {
             setSaving(false);
           }
