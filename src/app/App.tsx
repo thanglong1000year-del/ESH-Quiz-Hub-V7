@@ -10,6 +10,7 @@ import ClassDetailPage from "@/app/pages/teacher/ClassDetailPage";
 import AssignmentsPage from "@/app/pages/teacher/AssignmentsPage";
 import AssignmentResultsPage from "@/app/pages/teacher/AssignmentResultsPage";
 import WrittenSubmissionsPage from "@/app/pages/teacher/WrittenSubmissionsPage";
+import ReportCampaignsPage from "@/app/pages/teacher/ReportCampaignsPage";
 import PreviewAssignmentPage from "@/app/pages/teacher/PreviewAssignmentPage";
 import TakeAssignmentPage from "@/app/pages/student/TakeAssignmentPage";
 
@@ -89,6 +90,14 @@ export default function App() {
           element={
             <RequireAuth>
               <WrittenSubmissionsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/classes/:classId/reports"
+          element={
+            <RequireAuth>
+              <ReportCampaignsPage />
             </RequireAuth>
           }
         />

@@ -2,7 +2,12 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "@shared/lib/auth-context";
 import { usePlatformConfig } from "@shared/lib/platform";
-import { addStudentsBulk, removeStudent, subscribeStudents } from "@shared/lib/classes";
+import {
+  addStudentsBulk,
+  removeStudent,
+  subscribeStudents,
+  updateStudentContact,
+} from "@shared/lib/classes";
 import {
   inviteViewerTeacher,
   revokeInvite,
@@ -22,6 +27,8 @@ export default function ClassDetailPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [bulkInput, setBulkInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const [editingContactId, setEditingContactId] = useState<string | null>(null);
 
   const [invites, setInvites] = useState<TeacherInvite[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -91,6 +98,11 @@ export default function ClassDetailPage() {
           <Link to={`/classes/${classId}/assignments`} className="btn-secondary text-sm">
             Đề / bài giao của lớp →
           </Link>
+          {!isViewer && (
+            <Link to={`/classes/${classId}/reports`} className="btn-secondary text-sm">
+              Báo cáo/campaign →
+            </Link>
+          )}
         </div>
       </div>
 
@@ -115,18 +127,43 @@ export default function ClassDetailPage() {
 
       <div className="space-y-1 mb-6">
         {students.map((s) => (
-          <div
-            key={s.id}
-            className="flex items-center justify-between bg-surface-0 border border-surface-200 rounded-md px-3 py-2"
-          >
-            <span className="text-slate-900">{s.fullName}</span>
-            {!isViewer && (
-              <button
-                className="text-sm text-danger-500 hover:underline"
-                onClick={() => removeStudent(subjectId, classId, s.id)}
-              >
-                Xoá
-              </button>
+          <div key={s.id} className="bg-surface-0 border border-surface-200 rounded-md px-3 py-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-slate-900">{s.fullName}</span>
+                {(s.studentEmail || s.parentEmail) && (
+                  <span className="ml-2 text-xs text-slate-400">
+                    {s.studentEmail && `HS: ${s.studentEmail}`}
+                    {s.studentEmail && s.parentEmail && " · "}
+                    {s.parentEmail && `PH: ${s.parentEmail}`}
+                  </span>
+                )}
+              </div>
+              {!isViewer && (
+                <div className="flex gap-3">
+                  <button
+                    className="text-sm text-brand-500 hover:underline"
+                    onClick={() => setEditingContactId(editingContactId === s.id ? null : s.id)}
+                  >
+                    {editingContactId === s.id ? "Đóng" : "Email"}
+                  </button>
+                  <button
+                    className="text-sm text-danger-500 hover:underline"
+                    onClick={() => removeStudent(subjectId, classId, s.id)}
+                  >
+                    Xoá
+                  </button>
+                </div>
+              )}
+            </div>
+            {editingContactId === s.id && (
+              <StudentContactForm
+                student={s}
+                onSave={async (contact) => {
+                  await updateStudentContact(subjectId, classId, s.id, contact);
+                  setEditingContactId(null);
+                }}
+              />
             )}
           </div>
         ))}
@@ -195,6 +232,56 @@ export default function ClassDetailPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Form nhỏ sửa email học sinh/phụ huynh — dữ liệu dùng để gửi Báo cáo/campaign. */
+function StudentContactForm({
+  student,
+  onSave,
+}: {
+  student: Student;
+  onSave: (contact: { studentEmail?: string; parentEmail?: string }) => Promise<void>;
+}) {
+  const [studentEmail, setStudentEmail] = useState(student.studentEmail ?? "");
+  const [parentEmail, setParentEmail] = useState(student.parentEmail ?? "");
+  const [saving, setSaving] = useState(false);
+
+  return (
+    <div className="mt-2 flex flex-wrap items-end gap-2 border-t border-surface-200 pt-2">
+      <div>
+        <label className="block text-xs text-slate-500">Email học sinh</label>
+        <input
+          type="email"
+          className="input text-sm"
+          value={studentEmail}
+          onChange={(e) => setStudentEmail(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="block text-xs text-slate-500">Email phụ huynh</label>
+        <input
+          type="email"
+          className="input text-sm"
+          value={parentEmail}
+          onChange={(e) => setParentEmail(e.target.value)}
+        />
+      </div>
+      <button
+        className="btn-primary text-sm"
+        disabled={saving}
+        onClick={async () => {
+          setSaving(true);
+          try {
+            await onSave({ studentEmail, parentEmail });
+          } finally {
+            setSaving(false);
+          }
+        }}
+      >
+        {saving ? "Đang lưu…" : "Lưu"}
+      </button>
     </div>
   );
 }

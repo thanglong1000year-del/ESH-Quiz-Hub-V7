@@ -93,3 +93,16 @@ export async function addStudentsBulk(
 export async function removeStudent(subjectId: string, classId: string, studentId: string) {
   await deleteDoc(doc(db, "subjects", subjectId, "classes", classId, "students", studentId));
 }
+
+/** Cập nhật email học sinh/phụ huynh — cần ít nhất 1 trong 2 để nhận báo cáo (xem ReportCampaign). */
+export async function updateStudentContact(
+  subjectId: string,
+  classId: string,
+  studentId: string,
+  input: { studentEmail?: string; parentEmail?: string }
+) {
+  await updateDoc(doc(db, "subjects", subjectId, "classes", classId, "students", studentId), {
+    studentEmail: input.studentEmail?.trim() ?? "",
+    parentEmail: input.parentEmail?.trim() ?? "",
+  });
+}
