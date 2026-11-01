@@ -122,7 +122,7 @@ export async function addStudentsBulk(
         fullName: s.fullName,
         studentCode: "",
         studentEmail: s.studentEmail ?? "",
-        parentEmail: s.parentEmail ?? "",
+        parentEmails: s.parentEmails,
         viewToken: generateViewToken(),
       });
     }
@@ -134,7 +134,10 @@ export async function addStudentsBulk(
  * Cập nhật email phụ huynh hàng loạt bằng cách khớp TÊN với học sinh đã có
  * sẵn trong lớp (không phân biệt hoa/thường, bỏ khoảng trắng thừa) — dùng
  * khi nhận được danh sách liên hệ phụ huynh sau khi đã nhập danh sách lớp.
- * Trả về số dòng khớp được và danh sách tên không tìm thấy.
+ * THÊM VÀO (gộp, bỏ trùng) danh sách email đã có của học sinh đó, KHÔNG
+ * xoá email cũ — vì 1 học sinh có thể có nhiều email phụ huynh (bố, mẹ…)
+ * được thêm ở những lần khác nhau. Trả về số dòng khớp được và danh sách
+ * tên không tìm thấy.
  */
 export async function bulkUpdateParentEmails(
   subjectId: string,
@@ -142,21 +145,23 @@ export async function bulkUpdateParentEmails(
   entries: ParsedParentContact[]
 ): Promise<{ matched: number; unmatched: string[] }> {
   const snap = await getDocs(studentsRef(subjectId, classId));
-  const byName = new Map<string, string>(); // normalized name -> doc id
+  const byName = new Map<string, { id: string; parentEmails: string[] }>();
   snap.docs.forEach((d) => {
     const fullName = (d.data().fullName as string) ?? "";
-    byName.set(normalizeNameForMatch(fullName), d.id);
+    const parentEmails = (d.data().parentEmails as string[] | undefined) ?? [];
+    byName.set(normalizeNameForMatch(fullName), { id: d.id, parentEmails });
   });
 
   const unmatched: string[] = [];
-  const toUpdate: { id: string; parentEmail: string }[] = [];
+  const toUpdate: { id: string; parentEmails: string[] }[] = [];
   for (const entry of entries) {
-    const studentId = byName.get(normalizeNameForMatch(entry.studentName));
-    if (!studentId) {
+    const found = byName.get(normalizeNameForMatch(entry.studentName));
+    if (!found) {
       unmatched.push(entry.studentName);
       continue;
     }
-    toUpdate.push({ id: studentId, parentEmail: entry.parentEmail });
+    const merged = Array.from(new Set([...found.parentEmails, ...entry.parentEmails]));
+    toUpdate.push({ id: found.id, parentEmails: merged });
   }
 
   for (let i = 0; i < toUpdate.length; i += 450) {
@@ -164,7 +169,7 @@ export async function bulkUpdateParentEmails(
     const batch = writeBatch(db);
     for (const u of chunk) {
       batch.update(doc(db, "subjects", subjectId, "classes", classId, "students", u.id), {
-        parentEmail: u.parentEmail,
+        parentEmails: u.parentEmails,
       });
     }
     await batch.commit();
@@ -177,15 +182,19 @@ export async function removeStudent(subjectId: string, classId: string, studentI
   await deleteDoc(doc(db, "subjects", subjectId, "classes", classId, "students", studentId));
 }
 
-/** Cập nhật email học sinh/phụ huynh — cần ít nhất 1 trong 2 để nhận báo cáo (xem ReportCampaign). */
+/** Cập nhật email học sinh/phụ huynh — cần ít nhất 1 email để nhận báo cáo (xem ReportCampaign). */
 export async function updateStudentContact(
   subjectId: string,
   classId: string,
   studentId: string,
-  input: { studentEmail?: string; parentEmail?: string }
+  input: { studentEmail?: string; parentEmails: string[] }
 ) {
   await updateDoc(doc(db, "subjects", subjectId, "classes", classId, "students", studentId), {
-    studentEmail: input.studentEmail?.trim() ?? "",
-    parentEmail: input.parentEmail?.trim() ?? "",
+    studentEmail: input.studentEmail?.trim().toLowerCase() ?? "",
+    // Chuẩn hoá chữ thường — phụ huynh đăng nhập bằng email/mật khẩu được
+    // khớp bằng so sánh chính xác (xem bulk-import.ts, syncParentProfile).
+    // Đây là lần GHI ĐÈ toàn bộ danh sách (khác bulkUpdateParentEmails chỉ
+    // gộp thêm) — dùng khi giáo viên sửa tay đúng 1 học sinh.
+    parentEmails: input.parentEmails.map((e) => e.trim().toLowerCase()).filter(Boolean),
   });
 }

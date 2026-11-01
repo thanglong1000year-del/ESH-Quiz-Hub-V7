@@ -111,7 +111,24 @@ export function parseQuestionBankBulkText(text: string): BulkImportResult<Parsed
 export interface ParsedBulkStudent {
   fullName: string;
   studentEmail?: string;
-  parentEmail?: string;
+  parentEmails: string[];
+}
+
+// Email luôn chuẩn hoá về chữ thường khi lưu — phụ huynh đăng nhập bằng
+// email/mật khẩu (xem syncParentProfile ở Cloud Functions) được khớp bằng
+// so sánh CHÍNH XÁC (Firestore where == không phân biệt hoa/thường được),
+// nên nếu không chuẩn hoá từ đầu, phụ huynh gõ email đúng nhưng khác hoa/
+// thường so với lúc giáo viên nhập sẽ không tìm thấy con mình.
+//
+// Cột "Email phụ huynh" có thể chứa NHIỀU email cách nhau bằng dấu ";" —
+// ví dụ cả bố và mẹ cùng muốn đăng nhập xem kết quả (xem Student.parentEmails
+// ở core.ts). Luôn dùng ";" (không dùng ",") vì "," đã là dấu phân cách cột
+// khi dán ở định dạng CSV.
+function parseEmailCell(cell: string): string[] {
+  return cell
+    .split(";")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
 }
 
 export function parseStudentRosterBulkText(text: string): BulkImportResult<ParsedBulkStudent> {
@@ -127,20 +144,20 @@ export function parseStudentRosterBulkText(text: string): BulkImportResult<Parse
       errors.push(`Dòng ${rowNum}: thiếu tên học sinh.`);
       return;
     }
-    const studentEmail = (cols[1] || "").trim();
-    const parentEmail = (cols[2] || "").trim();
+    const studentEmail = (cols[1] || "").trim().toLowerCase();
+    const parentEmails = parseEmailCell(cols[2] || "");
     if (studentEmail && !studentEmail.includes("@")) {
       errors.push(`Dòng ${rowNum}: email học sinh "${studentEmail}" không hợp lệ.`);
       return;
     }
-    if (parentEmail && !parentEmail.includes("@")) {
-      errors.push(`Dòng ${rowNum}: email phụ huynh "${parentEmail}" không hợp lệ.`);
+    if (parentEmails.some((e) => !e.includes("@"))) {
+      errors.push(`Dòng ${rowNum}: email phụ huynh "${cols[2]}" không hợp lệ.`);
       return;
     }
     items.push({
       fullName,
       studentEmail: studentEmail || undefined,
-      parentEmail: parentEmail || undefined,
+      parentEmails,
     });
   });
 
@@ -155,7 +172,8 @@ export function parseStudentRosterBulkText(text: string): BulkImportResult<Parse
 
 export interface ParsedParentContact {
   studentName: string;
-  parentEmail: string;
+  /** Nhiều email cách nhau bằng ";" — xem parseEmailCell. */
+  parentEmails: string[];
 }
 
 export function parseParentContactBulkText(text: string): BulkImportResult<ParsedParentContact> {
@@ -171,16 +189,16 @@ export function parseParentContactBulkText(text: string): BulkImportResult<Parse
     const rowNum = i + 1;
     const cols = splitColumns(lines[i]);
     const studentName = (cols[0] || "").trim();
-    const parentEmail = (cols[1] || "").trim();
-    if (!studentName || !parentEmail) {
+    const parentEmails = parseEmailCell(cols[1] || "");
+    if (!studentName || parentEmails.length === 0) {
       errors.push(`Dòng ${rowNum}: cần đủ 2 cột — tên học sinh và email phụ huynh.`);
       continue;
     }
-    if (!parentEmail.includes("@")) {
-      errors.push(`Dòng ${rowNum}: email "${parentEmail}" không hợp lệ.`);
+    if (parentEmails.some((e) => !e.includes("@"))) {
+      errors.push(`Dòng ${rowNum}: email "${cols[1]}" không hợp lệ.`);
       continue;
     }
-    items.push({ studentName, parentEmail });
+    items.push({ studentName, parentEmails });
   }
 
   return { items, errors };

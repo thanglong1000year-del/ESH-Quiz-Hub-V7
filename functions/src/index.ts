@@ -8,3 +8,5 @@ export { claimTeacherInvite } from "./claimTeacherInvite.js";
 export { runReportCampaignNow } from "./runReportCampaignNow.js";
 export { scheduledReportCampaignRun } from "./scheduledReportCampaignRun.js";
 export { getStudentProgress } from "./getStudentProgress.js";
+export { syncParentProfile } from "./syncParentProfile.js";
+export { getChildProgressForParent } from "./getChildProgressForParent.js";

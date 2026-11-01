@@ -14,6 +14,8 @@ import ReportCampaignsPage from "@/app/pages/teacher/ReportCampaignsPage";
 import PreviewAssignmentPage from "@/app/pages/teacher/PreviewAssignmentPage";
 import TakeAssignmentPage from "@/app/pages/student/TakeAssignmentPage";
 import ParentProgressPage from "@/app/pages/parent/ParentProgressPage";
+import ParentLoginPage from "@/app/pages/parent/ParentLoginPage";
+import ParentDashboardPage from "@/app/pages/parent/ParentDashboardPage";
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -34,6 +36,9 @@ function RoleRouter() {
   const { profile, loading } = useAuth();
   if (loading) return <FullScreenLoading />;
   if (profile?.role === "owner") return <OwnerDashboard />;
+  // Phụ huynh đăng nhập bằng email/mật khẩu lẽ ra luôn vào thẳng /parent
+  // (xem parent-auth.ts), nhưng phòng trường hợp họ bấm thẳng vào "/".
+  if (profile?.role === "parent") return <Navigate to="/parent" replace />;
   return <TeacherDashboard />;
 }
 
@@ -47,6 +52,15 @@ export default function App() {
         <Route
           path="/progress/:subjectId/:classId/:studentId/:token"
           element={<ParentProgressPage />}
+        />
+        <Route path="/parent/login" element={<ParentLoginPage />} />
+        <Route
+          path="/parent"
+          element={
+            <RequireAuth>
+              <ParentDashboardPage />
+            </RequireAuth>
+          }
         />
 
         {/* Cần đăng nhập (Owner hoặc Teacher). */}

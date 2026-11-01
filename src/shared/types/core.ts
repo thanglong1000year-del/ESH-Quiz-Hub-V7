@@ -7,7 +7,7 @@
  * trong `src/subjects/{subjectId}/` dưới dạng cấu hình dữ liệu, không phải code.
  */
 
-export type Role = "owner" | "teacher";
+export type Role = "owner" | "teacher" | "parent";
 
 /**
  * Vai trò của giáo viên TRONG môn (chỉ có ý nghĩa khi role === "teacher"):
@@ -21,6 +21,22 @@ export type Role = "owner" | "teacher";
  */
 export type TeacherRole = "admin" | "viewer";
 
+/**
+ * Một học sinh (con) mà phụ huynh xem được — khớp bằng email đã xác thực
+ * với `parentEmail` trên document học sinh (xem Cloud Function
+ * `syncParentProfile`). Chỉ lưu tên hiển thị để vẽ danh sách, KHÔNG lưu số
+ * liệu điểm/tiến độ — số liệu luôn đọc lại qua `getChildProgressForParent`
+ * để không bao giờ bị lệch với dữ liệu thật.
+ */
+export interface ParentChildRef {
+  subjectId: string;
+  classId: string;
+  studentId: string;
+  studentName: string;
+  className: string;
+  subjectName: string;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -32,6 +48,8 @@ export interface UserProfile {
   teacherRole?: TeacherRole;
   /** Chỉ có ý nghĩa khi teacherRole === "viewer" — đúng 1 lớp được xem. */
   viewerClassId?: string;
+  /** Chỉ có ý nghĩa khi role === "parent" — làm mới mỗi lần đăng nhập qua `syncParentProfile`. */
+  children?: ParentChildRef[];
   createdAt: string; // ISO timestamp
 }
 
@@ -128,9 +146,16 @@ export interface Student extends SchoolYearScoped {
   classId: string;
   fullName: string;
   studentCode?: string;
-  /** Tuỳ chọn — cần ít nhất 1 trong 2 email này để nhận báo cáo (xem ReportCampaign). */
+  /** Tuỳ chọn — cần ít nhất 1 email (học sinh hoặc phụ huynh) để nhận báo cáo (xem ReportCampaign). */
   studentEmail?: string;
-  parentEmail?: string;
+  /**
+   * Nhiều phụ huynh/người giám hộ có thể cùng xem 1 học sinh (ví dụ cả bố
+   * và mẹ) — mỗi email đăng nhập đúng tài khoản của mình (xem
+   * `syncParentProfile`), không chia sẻ 1 tài khoản chung. 1 phụ huynh có
+   * nhiều con thì dùng CÙNG 1 email này cho mỗi con — đăng nhập 1 lần thấy
+   * hết các con khớp email.
+   */
+  parentEmails?: string[];
   /** Mã bí mật trong link "Theo dõi tiến độ" gửi phụ huynh — đổi mã = thu hồi link cũ. */
   viewToken?: string;
 }
