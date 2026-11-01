@@ -1,4 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
+import { computeStudentProgress } from "./studentProgress.js";
 
 /**
  * Logic lõi chạy 1 chiến dịch báo cáo — dùng chung giữa callable
@@ -158,21 +159,15 @@ export async function runReportCampaign(
         continue;
       }
 
-      const subs = (submissionsByName.get(student.fullName) ?? []).filter((s) => s.score != null);
-      const avgScore =
-        subs.length > 0 ? subs.reduce((sum, s) => sum + (s.score ?? 0), 0) / subs.length : null;
-
-      const weeksRecord = writtenByStudentId.get(student.id)?.weeks ?? {};
-      const totalWeeks = Object.keys(weeksRecord).length;
-      const submittedWeeks = Object.values(weeksRecord).filter(Boolean).length;
+      const progress = computeStudentProgress(
+        (submissionsByName.get(student.fullName) ?? []).map((s) => s.score),
+        writtenByStudentId.get(student.id)?.weeks ?? {}
+      );
 
       const html = buildReportHtml({
         studentName: student.fullName,
         campaignTitle: campaign.title,
-        avgScore,
-        submissionCount: subs.length,
-        submittedWeeks,
-        totalWeeks,
+        ...progress,
       });
 
       mailWrites.push(

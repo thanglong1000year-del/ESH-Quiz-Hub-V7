@@ -94,6 +94,10 @@ export default function ReportCampaignsPage() {
           sinh/phụ huynh có khai báo email. Cần Owner bật Firebase Extension "Trigger Email" trên
           project thật trước khi email thực sự gửi đi — xem README.
         </p>
+        <p className="text-sm text-slate-500 mt-1">
+          Không muốn cài email? Dùng nút "Copy link phụ huynh" ở trang lớp — miễn phí, gửi qua
+          Zalo/SMS, phụ huynh tự xem tiến độ bất cứ lúc nào.
+        </p>
       </div>
 
       <form onSubmit={handleCreate} className="card space-y-3 mb-6">

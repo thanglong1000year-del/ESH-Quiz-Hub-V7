@@ -4,6 +4,8 @@ import { useAuth } from "@shared/lib/auth-context";
 import { usePlatformConfig } from "@shared/lib/platform";
 import {
   addStudentsBulk,
+  progressLink,
+  regenerateViewToken,
   removeStudent,
   subscribeStudents,
   updateStudentContact,
@@ -29,6 +31,7 @@ export default function ClassDetailPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const [invites, setInvites] = useState<TeacherInvite[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -57,6 +60,27 @@ export default function ClassDetailPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handleCopyProgressLink(student: Student) {
+    const token =
+      student.viewToken ?? (await regenerateViewToken(subjectId!, classId!, student.id));
+    const link = progressLink(subjectId!, classId!, student.id, token);
+    const message = `Kính gửi phụ huynh em ${student.fullName}, thầy/cô gửi link theo dõi tiến độ học tập của em (điểm bài trắc nghiệm, bài tập tự luận theo tuần). Số liệu tự cập nhật mỗi lần mở: ${link}`;
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopiedId(student.id);
+      setTimeout(() => setCopiedId((id) => (id === student.id ? null : id)), 2000);
+    } catch {
+      window.prompt("Copy tin nhắn dưới đây để gửi phụ huynh:", message);
+    }
+  }
+
+  async function handleRevokeProgressLink(student: Student) {
+    if (!window.confirm(`Tạo link mới cho ${student.fullName}? Link cũ đã gửi sẽ không mở được nữa.`)) {
+      return;
+    }
+    await regenerateViewToken(subjectId!, classId!, student.id);
   }
 
   async function handleInvite(e: FormEvent) {
@@ -139,8 +163,29 @@ export default function ClassDetailPage() {
                   </span>
                 )}
               </div>
+              {isViewer && s.viewToken && (
+                <button
+                  className="text-sm text-brand-500 hover:underline"
+                  onClick={() => handleCopyProgressLink(s)}
+                >
+                  {copiedId === s.id ? "Đã copy ✓" : "Copy link phụ huynh"}
+                </button>
+              )}
               {!isViewer && (
                 <div className="flex gap-3">
+                  <button
+                    className="text-sm text-brand-500 hover:underline"
+                    onClick={() => handleCopyProgressLink(s)}
+                  >
+                    {copiedId === s.id ? "Đã copy ✓" : "Copy link phụ huynh"}
+                  </button>
+                  <button
+                    className="text-sm text-slate-500 hover:underline"
+                    title="Tạo link mới — link cũ đã gửi sẽ không mở được nữa"
+                    onClick={() => handleRevokeProgressLink(s)}
+                  >
+                    Đổi link
+                  </button>
                   <button
                     className="text-sm text-brand-500 hover:underline"
                     onClick={() => setEditingContactId(editingContactId === s.id ? null : s.id)}

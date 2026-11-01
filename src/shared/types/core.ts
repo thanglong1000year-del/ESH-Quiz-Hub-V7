@@ -131,6 +131,8 @@ export interface Student extends SchoolYearScoped {
   /** Tuỳ chọn — cần ít nhất 1 trong 2 email này để nhận báo cáo (xem ReportCampaign). */
   studentEmail?: string;
   parentEmail?: string;
+  /** Mã bí mật trong link "Theo dõi tiến độ" gửi phụ huynh — đổi mã = thu hồi link cũ. */
+  viewToken?: string;
 }
 
 export type AssignmentStatus = "draft" | "published" | "closed";

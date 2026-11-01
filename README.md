@@ -55,7 +55,8 @@ Hướng dẫn chạy dev: [`docs/DEV_SETUP.md`](docs/DEV_SETUP.md).
 - [x] Owner tạo tài khoản giáo viên **admin** trực tiếp từ UI (Cloud Function `createTeacherAdmin` — tạo tài khoản Auth thật + trả mật khẩu tạm 1 lần, không cần tạo tay qua Firebase Console nữa)
 - [x] Giáo viên admin mời thêm giáo viên **viewer** xem đúng 1 lớp (đăng nhập bằng Gmail cá nhân, chỉ xem — không sửa; xem thử đề không ghi nhận kết quả) — xem mục "Mời giáo viên xem lớp" trong `docs/DATA_MODEL.md`
 - [ ] ~~Điểm danh~~ (đã bỏ khỏi phạm vi theo quyết định của Owner — không triển khai)
-- [x] Báo cáo/campaign — hẹn giờ/gửi ngay email báo cáo tiến độ (điểm trung bình + tỉ lệ nộp bài tự luận) cho học sinh/phụ huynh; xem mục "Báo cáo/campaign" trong `docs/DATA_MODEL.md`. **Chưa gửi được email thật** nếu Owner chưa cài Firebase Extension "Trigger Email" (xem dưới) — bản PDF đính kèm để giai đoạn sau.
+- [x] **Link "Theo dõi tiến độ" cho phụ huynh** (kênh mặc định, miễn phí) — giáo viên copy tin nhắn kèm link riêng của từng học sinh rồi tự gửi qua Zalo/SMS/email; phụ huynh mở lúc nào cũng thấy điểm + tiến độ nộp bài mới nhất, không cần đăng nhập
+- [x] (Tuỳ chọn) Báo cáo/campaign email — hẹn giờ/gửi ngay email báo cáo tiến độ (điểm trung bình + tỉ lệ nộp bài tự luận) cho học sinh/phụ huynh; xem mục "Báo cáo/campaign" trong `docs/DATA_MODEL.md`. **Chưa gửi được email thật** nếu Owner chưa cài Firebase Extension "Trigger Email" (xem dưới) — bản PDF đính kèm để giai đoạn sau.
 
 ### Lưu ý khi deploy production
 

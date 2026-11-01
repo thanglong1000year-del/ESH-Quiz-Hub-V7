@@ -141,7 +141,30 @@ Admin SDK bỏ qua Firestore Rules.
 Console → Authentication → Sign-in method (ngoài Anonymous Authentication
 đã có) để giáo viên viewer đăng nhập được.
 
-## Báo cáo/campaign — nhắc giờ gửi báo cáo tiến độ
+## Link "Theo dõi tiến độ" cho phụ huynh — kênh mặc định, miễn phí
+
+Quyết định 2026-11-01: V6.3.8 gặp vấn đề chi phí với báo cáo gửi tự động
+(dữ liệu tăng dần, vượt mức miễn phí). Kênh chính của V7 là **kéo (pull)**
+thay vì **đẩy (push)**: mỗi học sinh có 1 `viewToken` ngẫu nhiên (128 bit,
+tạo khi thêm học sinh), giáo viên bấm "Copy link phụ huynh" trên
+`ClassDetailPage` để lấy sẵn 1 tin nhắn kèm link và tự dán vào Zalo/SMS/
+email — app không gửi gì, không cần SMTP, không tốn phí tin nhắn.
+
+- Link: `/progress/{subjectId}/{classId}/{studentId}/{viewToken}` →
+  `ParentProgressPage` gọi callable `getStudentProgress` (Admin SDK, không
+  cần đăng nhập). Function so khớp token (timing-safe), chỉ trả số liệu
+  tổng hợp của đúng học sinh đó (điểm từng bài, tick tự luận theo tuần) —
+  không có câu hỏi/đáp án, Firestore Rules không phải mở quyền đọc công khai.
+- Chi phí: chỉ đọc Firestore khi phụ huynh thực sự mở link (~5 lượt đọc
+  + số bài đã làm), không quét định kỳ toàn bộ học sinh.
+- "Đổi link" = tạo `viewToken` mới, link cũ lập tức hết hiệu lực (dùng khi
+  gửi nhầm người).
+
+## Báo cáo/campaign — nhắc giờ gửi email (tuỳ chọn)
+
+Chỉ dùng khi trường muốn đẩy email chủ động và chấp nhận cài extension
+"Trigger Email" + nhà cung cấp SMTP. Không bắt buộc — link theo dõi tiến độ
+ở trên đã đủ để phụ huynh nắm tình hình.
 
 Tính năng lớn còn thiếu so với V6.3.8 (`report-campaign-*`), viết lại cho
 kiến trúc đa môn — xem `functions/src/reportCampaign.ts`.
