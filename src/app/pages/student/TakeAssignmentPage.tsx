@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getPublicAssignment, type SafeQuestion } from "@shared/lib/assignments";
-import { submitAssignmentAnswers } from "@shared/lib/student-submit";
+import { ensureAnonymousSession, submitAssignmentAnswers } from "@shared/lib/student-submit";
 import type { Assignment } from "@shared/types/core";
 
 type Phase = "loading" | "name" | "answering" | "submitting" | "done" | "error" | "unavailable";
@@ -26,7 +26,13 @@ export default function TakeAssignmentPage() {
 
   useEffect(() => {
     if (!subjectId || !assignmentId) return;
-    getPublicAssignment(subjectId, assignmentId)
+    // Firestore Rules chỉ cho đọc đề đã published khi `signedIn()` — phải có
+    // phiên ẩn danh TRƯỚC khi đọc đề, không phải chỉ lúc nộp bài. Thiếu bước
+    // này thì getPublicAssignment luôn bị rules từ chối, trang báo nhầm là
+    // "đề chưa mở/đã đóng" dù đề đang mở bình thường (phát hiện khi thử
+    // nghiệm luồng thật trên emulator).
+    ensureAnonymousSession()
+      .then(() => getPublicAssignment(subjectId, assignmentId))
       .then((a) => {
         if (!a || a.status !== "published") {
           setPhase("unavailable");

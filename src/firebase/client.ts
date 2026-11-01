@@ -23,7 +23,14 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
-export const functions = getFunctions(app);
+// QUAN TRỌNG: mọi Cloud Function (functions/src/*.ts) đều khai báo
+// `region: "asia-southeast1"`. `getFunctions(app)` không có region sẽ mặc
+// định gọi "us-central1" — SAI VÙNG, callable sẽ luôn lỗi CORS/not-found cả
+// trên production lẫn emulator (phát hiện khi thử nghiệm luồng nộp bài thật
+// trên emulator — submitAssignment, createTeacherAdmin, claimTeacherInvite,
+// previewAssignment, runReportCampaignNow, getStudentProgress đều bị ảnh
+// hưởng, không riêng tính năng nào). Phải khớp đúng region ở đây.
+export const functions = getFunctions(app, "asia-southeast1");
 
 const useEmulator =
   import.meta.env.DEV &&
