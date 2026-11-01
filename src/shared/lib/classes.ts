@@ -72,7 +72,26 @@ export async function addStudent(
     classId,
     fullName: input.fullName,
     studentCode: input.studentCode ?? "",
+    viewToken: generateViewToken(),
   });
+}
+
+export function generateViewToken() {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Tạo mã mới (cũng dùng cho học sinh cũ chưa có mã) — link cũ lập tức hết hiệu lực. */
+export async function regenerateViewToken(subjectId: string, classId: string, studentId: string) {
+  const viewToken = generateViewToken();
+  await updateDoc(doc(db, "subjects", subjectId, "classes", classId, "students", studentId), {
+    viewToken,
+  });
+  return viewToken;
+}
+
+export function progressLink(subjectId: string, classId: string, studentId: string, viewToken: string) {
+  return `${window.location.origin}/progress/${subjectId}/${classId}/${studentId}/${viewToken}`;
 }
 
 /** Thêm nhiều học sinh cùng lúc — mỗi dòng 1 tên (dán danh sách từ Excel/Sheets). */
@@ -92,4 +111,17 @@ export async function addStudentsBulk(
 
 export async function removeStudent(subjectId: string, classId: string, studentId: string) {
   await deleteDoc(doc(db, "subjects", subjectId, "classes", classId, "students", studentId));
+}
+
+/** Cập nhật email học sinh/phụ huynh — cần ít nhất 1 trong 2 để nhận báo cáo (xem ReportCampaign). */
+export async function updateStudentContact(
+  subjectId: string,
+  classId: string,
+  studentId: string,
+  input: { studentEmail?: string; parentEmail?: string }
+) {
+  await updateDoc(doc(db, "subjects", subjectId, "classes", classId, "students", studentId), {
+    studentEmail: input.studentEmail?.trim() ?? "",
+    parentEmail: input.parentEmail?.trim() ?? "",
+  });
 }

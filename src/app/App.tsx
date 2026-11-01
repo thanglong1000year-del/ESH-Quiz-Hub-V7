@@ -10,8 +10,10 @@ import ClassDetailPage from "@/app/pages/teacher/ClassDetailPage";
 import AssignmentsPage from "@/app/pages/teacher/AssignmentsPage";
 import AssignmentResultsPage from "@/app/pages/teacher/AssignmentResultsPage";
 import WrittenSubmissionsPage from "@/app/pages/teacher/WrittenSubmissionsPage";
+import ReportCampaignsPage from "@/app/pages/teacher/ReportCampaignsPage";
 import PreviewAssignmentPage from "@/app/pages/teacher/PreviewAssignmentPage";
 import TakeAssignmentPage from "@/app/pages/student/TakeAssignmentPage";
+import ParentProgressPage from "@/app/pages/parent/ParentProgressPage";
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -42,6 +44,10 @@ export default function App() {
         {/* Công khai — học sinh làm bài, không cần tài khoản giáo viên/owner. */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/take/:subjectId/:assignmentId" element={<TakeAssignmentPage />} />
+        <Route
+          path="/progress/:subjectId/:classId/:studentId/:token"
+          element={<ParentProgressPage />}
+        />
 
         {/* Cần đăng nhập (Owner hoặc Teacher). */}
         <Route
@@ -89,6 +95,14 @@ export default function App() {
           element={
             <RequireAuth>
               <WrittenSubmissionsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/classes/:classId/reports"
+          element={
+            <RequireAuth>
+              <ReportCampaignsPage />
             </RequireAuth>
           }
         />

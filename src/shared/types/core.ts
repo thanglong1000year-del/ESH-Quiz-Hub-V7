@@ -128,6 +128,11 @@ export interface Student extends SchoolYearScoped {
   classId: string;
   fullName: string;
   studentCode?: string;
+  /** Tuỳ chọn — cần ít nhất 1 trong 2 email này để nhận báo cáo (xem ReportCampaign). */
+  studentEmail?: string;
+  parentEmail?: string;
+  /** Mã bí mật trong link "Theo dõi tiến độ" gửi phụ huynh — đổi mã = thu hồi link cũ. */
+  viewToken?: string;
 }
 
 export type AssignmentStatus = "draft" | "published" | "closed";
@@ -192,4 +197,35 @@ export interface AttendanceRecord extends SchoolYearScoped {
   date: string; // YYYY-MM-DD
   presentStudentIds: string[];
   absentStudentIds: string[];
+}
+
+/**
+ * Báo cáo/campaign — nhắc giờ gửi báo cáo tiến độ (điểm trắc nghiệm trung
+ * bình + tỉ lệ nộp bài tự luận theo tuần) cho học sinh/phụ huynh. Tính năng
+ * lớn còn thiếu so với V6.3.8 (`report-campaign-*`), viết lại cho kiến trúc
+ * đa môn — xem `functions/src/reportCampaign.ts`.
+ *
+ * Bài học từ lỗi V6.3.8: KHÔNG được đánh fail toàn bộ chiến dịch chỉ vì 1-2
+ * học sinh thiếu email — chỉ học sinh đó bị bỏ qua (`skippedStudentIds`); và
+ * `lastError` PHẢI hiển thị rõ trên UI (V6.3.8 ghi vào Firestore nhưng không
+ * bao giờ hiện ra, khiến giáo viên không biết lý do thất bại thật).
+ */
+export type ReportRecipientMode = "student" | "parent" | "both";
+export type ReportCampaignStatus = "scheduled" | "running" | "sent" | "failed";
+
+export interface ReportCampaign extends SchoolYearScoped {
+  id: string;
+  classId: string;
+  title: string;
+  recipientMode: ReportRecipientMode;
+  /** ISO — thời điểm chiến dịch sẽ tự chạy (scheduledReportCampaignRun quét mỗi 15 phút). */
+  scheduledAt: string;
+  status: ReportCampaignStatus;
+  /** Lý do thất bại THẬT, luôn hiển thị trên UI — không được âm thầm ghi vào Firestore rồi thôi. */
+  lastError?: string | null;
+  lastRunAt?: string;
+  targetCount?: number;
+  sentCount?: number;
+  skippedStudentIds?: string[];
+  createdAt: string;
 }

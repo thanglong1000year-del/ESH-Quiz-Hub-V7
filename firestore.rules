@@ -146,6 +146,19 @@ service cloud.firestore {
           allow read: if ownsSubject(subjectId) || isViewerOfClass(subjectId, classId);
           allow write: if ownsSubject(subjectId);
         }
+
+        // Báo cáo/campaign — chỉ giáo viên sở hữu môn tạo/xem/sửa. Việc CHẠY
+        // chiến dịch (đọc học sinh, gửi mail, cập nhật status/lastError) đi
+        // qua Cloud Function (Admin SDK, bỏ qua rules) — client chỉ tạo/đọc/
+        // xoá cấu hình chiến dịch, không tự set status "sent"/"failed".
+        match /reportCampaigns/{campaignId} {
+          allow read: if ownsSubject(subjectId) || isViewerOfClass(subjectId, classId);
+          allow create: if ownsSubject(subjectId)
+            && request.resource.data.subjectId == subjectId
+            && request.resource.data.status == 'scheduled';
+          allow update: if false; // chỉ Cloud Function (Admin SDK) được đổi status/lastError
+          allow delete: if ownsSubject(subjectId);
+        }
       }
 
       // Đề/bài giao, bài làm, điểm danh — theo năm học.
@@ -205,6 +218,14 @@ service cloud.firestore {
         && request.resource.data.email == inviteId;
       allow delete: if ownsSubject(resource.data.subjectId);
       allow update: if false;
+    }
+
+    // Hàng đợi gửi mail — chỉ Cloud Function (Admin SDK) ghi, theo đúng quy
+    // ước của Firebase Extension "Trigger Email" (field `to`/`message`).
+    // Client không bao giờ đọc/ghi trực tiếp (có thể chứa nội dung báo cáo
+    // của học sinh khác môn/lớp).
+    match /mail/{mailId} {
+      allow read, write: if false;
     }
   }
 }

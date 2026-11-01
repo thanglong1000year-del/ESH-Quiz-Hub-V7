@@ -5,3 +5,6 @@ export { submitAssignment } from "./submitAssignment.js";
 export { previewAssignment } from "./previewAssignment.js";
 export { createTeacherAdmin } from "./createTeacherAdmin.js";
 export { claimTeacherInvite } from "./claimTeacherInvite.js";
+export { runReportCampaignNow } from "./runReportCampaignNow.js";
+export { scheduledReportCampaignRun } from "./scheduledReportCampaignRun.js";
+export { getStudentProgress } from "./getStudentProgress.js";

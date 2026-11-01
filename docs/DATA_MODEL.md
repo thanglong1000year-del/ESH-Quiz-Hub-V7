@@ -26,13 +26,15 @@
 /platformConfig/{singleton}         # Owner cấu hình chung: thang điểm, thời gian mặc định, theme
 /users/{uid}                        # role: "owner" | "teacher"; nếu teacher: teacherRole "admin"|"viewer" + subjectId (+ viewerClassId nếu viewer)
 /teacherInvites/{email}              # lời mời giáo viên xem-lớp còn hiệu lực (xem mục dưới) — top-level, id = email chuẩn hoá
+/mail/{id}                           # hàng đợi gửi email (quy ước Firebase Extension "Trigger Email") — chỉ Cloud Function ghi
 /subjects/{subjectId}                # tên môn, ownerTeacherId, trạng thái, schoolYearCurrent
   /curriculum/{nodeId}               # khung chương trình của môn (bền vững, không theo năm)
   /questionBank/{questionId}         # ngân hàng câu hỏi (bền vững, không theo năm)
   /classes/{classId}                 # lớp — gắn schoolYear
-    /students/{studentId}
+    /students/{studentId}            # có thêm studentEmail/parentEmail (tuỳ chọn, cho Báo cáo/campaign)
     /writtenWeeks/{weekId}           # tuần có giao bài tự luận (xem mục dưới)
     /writtenSubmissions/{studentId}  # tick nộp/chưa nộp bài tự luận theo tuần
+    /reportCampaigns/{campaignId}    # Báo cáo/campaign — xem mục dưới
   /assignments/{assignmentId}        # đề/bài giao — gắn schoolYear
   /submissions/{submissionId}        # bài làm/kết quả — gắn schoolYear
   /attendance/{recordId}             # điểm danh — gắn schoolYear
@@ -138,6 +140,66 @@ Admin SDK bỏ qua Firestore Rules.
 **Lưu ý deploy production**: phải bật **Google Sign-In** trong Firebase
 Console → Authentication → Sign-in method (ngoài Anonymous Authentication
 đã có) để giáo viên viewer đăng nhập được.
+
+## Link "Theo dõi tiến độ" cho phụ huynh — kênh mặc định, miễn phí
+
+Quyết định 2026-11-01: V6.3.8 gặp vấn đề chi phí với báo cáo gửi tự động
+(dữ liệu tăng dần, vượt mức miễn phí). Kênh chính của V7 là **kéo (pull)**
+thay vì **đẩy (push)**: mỗi học sinh có 1 `viewToken` ngẫu nhiên (128 bit,
+tạo khi thêm học sinh), giáo viên bấm "Copy link phụ huynh" trên
+`ClassDetailPage` để lấy sẵn 1 tin nhắn kèm link và tự dán vào Zalo/SMS/
+email — app không gửi gì, không cần SMTP, không tốn phí tin nhắn.
+
+- Link: `/progress/{subjectId}/{classId}/{studentId}/{viewToken}` →
+  `ParentProgressPage` gọi callable `getStudentProgress` (Admin SDK, không
+  cần đăng nhập). Function so khớp token (timing-safe), chỉ trả số liệu
+  tổng hợp của đúng học sinh đó (điểm từng bài, tick tự luận theo tuần) —
+  không có câu hỏi/đáp án, Firestore Rules không phải mở quyền đọc công khai.
+- Chi phí: chỉ đọc Firestore khi phụ huynh thực sự mở link (~5 lượt đọc
+  + số bài đã làm), không quét định kỳ toàn bộ học sinh.
+- "Đổi link" = tạo `viewToken` mới, link cũ lập tức hết hiệu lực (dùng khi
+  gửi nhầm người).
+
+## Báo cáo/campaign — nhắc giờ gửi email (tuỳ chọn)
+
+Chỉ dùng khi trường muốn đẩy email chủ động và chấp nhận cài extension
+"Trigger Email" + nhà cung cấp SMTP. Không bắt buộc — link theo dõi tiến độ
+ở trên đã đủ để phụ huynh nắm tình hình.
+
+Tính năng lớn còn thiếu so với V6.3.8 (`report-campaign-*`), viết lại cho
+kiến trúc đa môn — xem `functions/src/reportCampaign.ts`.
+
+- `classes/{classId}/reportCampaigns/{campaignId}`: `{ title, recipientMode:
+  "student"|"parent"|"both", scheduledAt, status: "scheduled"|"running"|
+  "sent"|"failed", lastError?, lastRunAt?, targetCount?, sentCount?,
+  skippedStudentIds? }`. Client chỉ tạo (`status: "scheduled"`) và xoá; đổi
+  `status`/ghi `lastError` CHỈ do Cloud Function (Admin SDK) thực hiện
+  (`allow update: if false` trong rules).
+- Hai đường chạy dùng chung logic (`runReportCampaign`): callable
+  `runReportCampaignNow` (admin bấm "Gửi ngay") và `scheduledReportCampaignRun`
+  (`onSchedule`, quét mỗi 15 phút mọi chiến dịch `status == "scheduled"` đã
+  tới `scheduledAt`, qua `collectionGroup`).
+- Nội dung báo cáo mỗi học sinh: điểm trung bình trắc nghiệm (khớp theo
+  `studentName` trong `submissions` — **hạn chế đã biết**: bài làm ẩn danh
+  chỉ lưu tên tự nhập, không có `studentId`, nên 2 học sinh trùng tên trong
+  1 lớp sẽ bị gộp điểm, giống cách `AssignmentResultsPage` đang hiển thị) +
+  tỉ lệ nộp bài tự luận theo tuần (`writtenSubmissions`).
+- Gửi email qua collection top-level `mail` theo đúng quy ước của **Firebase
+  Extension "Trigger Email"** (`{ to: string[], message: { subject, html } }`)
+  — Owner cần tự cài extension này trên project Firebase thật (Firebase
+  Console → Extensions) kèm cấu hình SMTP/SendGrid, app không tự gửi email
+  trực tiếp.
+- **2 bài học rút ra từ lỗi thật của V6.3.8** (đã điều tra ở phiên
+  2026-10-26): (1) KHÔNG đánh fail toàn bộ chiến dịch chỉ vì 1-2 học sinh
+  thiếu email — chỉ học sinh đó bị bỏ qua (`skippedStudentIds`), các em còn
+  lại vẫn nhận được báo cáo; (2) `lastError` PHẢI hiển thị rõ trên
+  `ReportCampaignsPage.tsx` — V6.3.8 có ghi lý do lỗi thật vào Firestore
+  nhưng UI (`ReportCampaignPanel.tsx`) chưa bao giờ hiện ra, khiến giáo viên
+  không biết vì sao chiến dịch fail.
+- Học sinh/phụ huynh cần được khai báo `studentEmail`/`parentEmail` trên
+  `ClassDetailPage` (nút "Email" cạnh mỗi học sinh) trước khi có thể nhận
+  báo cáo — chiến dịch bỏ qua (không fail) học sinh nào thiếu cả 2 email
+  phù hợp với `recipientMode` đã chọn.
 
 ## Quy trình đóng năm học (tham khảo)
 

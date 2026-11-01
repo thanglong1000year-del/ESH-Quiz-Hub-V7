@@ -55,7 +55,8 @@ Hướng dẫn chạy dev: [`docs/DEV_SETUP.md`](docs/DEV_SETUP.md).
 - [x] Owner tạo tài khoản giáo viên **admin** trực tiếp từ UI (Cloud Function `createTeacherAdmin` — tạo tài khoản Auth thật + trả mật khẩu tạm 1 lần, không cần tạo tay qua Firebase Console nữa)
 - [x] Giáo viên admin mời thêm giáo viên **viewer** xem đúng 1 lớp (đăng nhập bằng Gmail cá nhân, chỉ xem — không sửa; xem thử đề không ghi nhận kết quả) — xem mục "Mời giáo viên xem lớp" trong `docs/DATA_MODEL.md`
 - [ ] ~~Điểm danh~~ (đã bỏ khỏi phạm vi theo quyết định của Owner — không triển khai)
-- [ ] Báo cáo/campaign PDF + email (để Giai đoạn sau theo lộ trình đã chốt)
+- [x] **Link "Theo dõi tiến độ" cho phụ huynh** (kênh mặc định, miễn phí) — giáo viên copy tin nhắn kèm link riêng của từng học sinh rồi tự gửi qua Zalo/SMS/email; phụ huynh mở lúc nào cũng thấy điểm + tiến độ nộp bài mới nhất, không cần đăng nhập
+- [x] (Tuỳ chọn) Báo cáo/campaign email — hẹn giờ/gửi ngay email báo cáo tiến độ (điểm trung bình + tỉ lệ nộp bài tự luận) cho học sinh/phụ huynh; xem mục "Báo cáo/campaign" trong `docs/DATA_MODEL.md`. **Chưa gửi được email thật** nếu Owner chưa cài Firebase Extension "Trigger Email" (xem dưới) — bản PDF đính kèm để giai đoạn sau.
 
 ### Lưu ý khi deploy production
 
@@ -64,8 +65,15 @@ Hướng dẫn chạy dev: [`docs/DEV_SETUP.md`](docs/DEV_SETUP.md).
   tài khoản).
 - **Bật Google Sign-In** (cùng mục trên) — bắt buộc để giáo viên **viewer**
   được mời đăng nhập bằng Gmail cá nhân.
+- **Cài Firebase Extension "Trigger Email"** (Firebase Console → Extensions,
+  tìm "Trigger Email from Firestore") và cấu hình SMTP/SendGrid — bắt buộc để
+  tính năng **Báo cáo/campaign** thực sự gửi được email (app chỉ ghi document
+  vào collection `mail`, chưa tự gửi email trực tiếp).
 
-Emulator Suite đã bật sẵn cả hai, không cần làm gì thêm khi dev.
+Emulator Suite đã bật sẵn Anonymous Auth + Google Sign-In, không cần làm gì
+thêm khi dev. Extension "Trigger Email" chỉ chạy được trên project thật —
+khi dev, các chiến dịch sẽ chuyển trạng thái "Đã gửi" nhưng email sẽ không
+thực sự rời khỏi hộp thư cho tới khi extension được cài.
 
 ## Stack kỹ thuật
 
