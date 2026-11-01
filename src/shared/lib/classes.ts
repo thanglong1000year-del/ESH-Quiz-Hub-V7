@@ -3,15 +3,19 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
   updateDoc,
   where,
+  writeBatch,
   type Unsubscribe,
 } from "firebase/firestore";
 import { db } from "@/firebase/client";
 import type { ClassRoom, Student } from "@shared/types/core";
+import type { ParsedBulkStudent, ParsedParentContact } from "./bulk-import";
+import { normalizeNameForMatch } from "./bulk-import";
 
 function classesRef(subjectId: string) {
   return collection(db, "subjects", subjectId, "classes");
@@ -94,19 +98,79 @@ export function progressLink(subjectId: string, classId: string, studentId: stri
   return `${window.location.origin}/progress/${subjectId}/${classId}/${studentId}/${viewToken}`;
 }
 
-/** Thêm nhiều học sinh cùng lúc — mỗi dòng 1 tên (dán danh sách từ Excel/Sheets). */
+/**
+ * Thêm nhiều học sinh cùng lúc — mỗi dòng 1 học sinh, đã qua
+ * `parseStudentRosterBulkText` (chỉ cần tên, hoặc "Tên, Email học sinh,
+ * Email phụ huynh" dán từ Excel/Sheets).
+ */
 export async function addStudentsBulk(
   subjectId: string,
   classId: string,
   schoolYear: string,
-  names: string[]
+  students: ParsedBulkStudent[]
 ) {
-  await Promise.all(
-    names
-      .map((n) => n.trim())
-      .filter(Boolean)
-      .map((fullName) => addStudent(subjectId, classId, schoolYear, { fullName }))
-  );
+  const ref = studentsRef(subjectId, classId);
+  for (let i = 0; i < students.length; i += 450) {
+    const chunk = students.slice(i, i + 450);
+    const batch = writeBatch(db);
+    for (const s of chunk) {
+      const docRef = doc(ref);
+      batch.set(docRef, {
+        subjectId,
+        schoolYear,
+        classId,
+        fullName: s.fullName,
+        studentCode: "",
+        studentEmail: s.studentEmail ?? "",
+        parentEmail: s.parentEmail ?? "",
+        viewToken: generateViewToken(),
+      });
+    }
+    await batch.commit();
+  }
+}
+
+/**
+ * Cập nhật email phụ huynh hàng loạt bằng cách khớp TÊN với học sinh đã có
+ * sẵn trong lớp (không phân biệt hoa/thường, bỏ khoảng trắng thừa) — dùng
+ * khi nhận được danh sách liên hệ phụ huynh sau khi đã nhập danh sách lớp.
+ * Trả về số dòng khớp được và danh sách tên không tìm thấy.
+ */
+export async function bulkUpdateParentEmails(
+  subjectId: string,
+  classId: string,
+  entries: ParsedParentContact[]
+): Promise<{ matched: number; unmatched: string[] }> {
+  const snap = await getDocs(studentsRef(subjectId, classId));
+  const byName = new Map<string, string>(); // normalized name -> doc id
+  snap.docs.forEach((d) => {
+    const fullName = (d.data().fullName as string) ?? "";
+    byName.set(normalizeNameForMatch(fullName), d.id);
+  });
+
+  const unmatched: string[] = [];
+  const toUpdate: { id: string; parentEmail: string }[] = [];
+  for (const entry of entries) {
+    const studentId = byName.get(normalizeNameForMatch(entry.studentName));
+    if (!studentId) {
+      unmatched.push(entry.studentName);
+      continue;
+    }
+    toUpdate.push({ id: studentId, parentEmail: entry.parentEmail });
+  }
+
+  for (let i = 0; i < toUpdate.length; i += 450) {
+    const chunk = toUpdate.slice(i, i + 450);
+    const batch = writeBatch(db);
+    for (const u of chunk) {
+      batch.update(doc(db, "subjects", subjectId, "classes", classId, "students", u.id), {
+        parentEmail: u.parentEmail,
+      });
+    }
+    await batch.commit();
+  }
+
+  return { matched: toUpdate.length, unmatched };
 }
 
 export async function removeStudent(subjectId: string, classId: string, studentId: string) {

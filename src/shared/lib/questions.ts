@@ -9,6 +9,7 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  writeBatch,
   type Unsubscribe,
 } from "firebase/firestore";
 import { db } from "@/firebase/client";
@@ -17,6 +18,7 @@ import type {
   MultipleChoiceQuestion,
   Question,
 } from "@shared/types/core";
+import type { ParsedBulkQuestion } from "./bulk-import";
 
 function questionBankRef(subjectId: string) {
   return collection(db, "subjects", subjectId, "questionBank");
@@ -75,6 +77,44 @@ export async function createMultipleChoiceQuestion(
     updatedAt: now,
     deletedAt: null,
   });
+}
+
+/**
+ * Nhập hàng loạt câu hỏi trắc nghiệm đã qua `parseQuestionBankBulkText`.
+ * Dùng `writeBatch` (tối đa 450 thao tác/batch, giới hạn Firestore là 500)
+ * để tạo nhanh hàng chục/trăm câu cùng lúc thay vì gọi addDoc tuần tự.
+ */
+export async function createMultipleChoiceQuestionsBulk(
+  subjectId: string,
+  createdBy: string,
+  items: ParsedBulkQuestion[]
+): Promise<number> {
+  const now = new Date().toISOString();
+  const ref = questionBankRef(subjectId);
+  let created = 0;
+  for (let i = 0; i < items.length; i += 450) {
+    const chunk = items.slice(i, i + 450);
+    const batch = writeBatch(db);
+    for (const item of chunk) {
+      const docRef = doc(ref);
+      batch.set(docRef, {
+        subjectId,
+        createdBy,
+        type: "multiple_choice",
+        prompt: item.prompt,
+        tags: item.tags,
+        options: item.options,
+        correctOptionIds: item.correctOptionIds,
+        validation: { status: "pending", issues: [] },
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      });
+    }
+    await batch.commit();
+    created += chunk.length;
+  }
+  return created;
 }
 
 export async function createEssayQuestion(
