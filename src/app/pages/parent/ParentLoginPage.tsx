@@ -4,6 +4,7 @@ import {
   EmailNotVerifiedError,
   resendParentVerificationEmail,
   signInParent,
+  signInParentWithGoogle,
   signUpParent,
 } from "@shared/lib/parent-auth";
 
@@ -18,6 +19,7 @@ export default function ParentLoginPage() {
   const [needsVerification, setNeedsVerification] = useState(false);
   const [resent, setResent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -62,6 +64,29 @@ export default function ParentLoginPage() {
       }
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    setError(null);
+    setNeedsVerification(false);
+    setGoogleSubmitting(true);
+    try {
+      const { children } = await signInParentWithGoogle();
+      if (children.length === 0) {
+        setError(
+          "Chưa tìm thấy học sinh nào dùng Gmail này làm email phụ huynh. Liên hệ giáo viên bộ môn để được thêm vào danh sách lớp."
+        );
+      } else {
+        navigate("/parent", { replace: true });
+      }
+    } catch (caught) {
+      const code = (caught as { code?: string })?.code;
+      if (code !== "auth/popup-closed-by-user") {
+        setError("Đăng nhập Google không thành công. Thử lại sau.");
+      }
+    } finally {
+      setGoogleSubmitting(false);
     }
   }
 
@@ -158,6 +183,25 @@ export default function ParentLoginPage() {
                 : "Đăng nhập"}
           </button>
         </form>
+
+        <div className="flex items-center gap-3 my-4">
+          <div className="flex-1 border-t border-surface-200" />
+          <span className="text-xs text-slate-400">hoặc</span>
+          <div className="flex-1 border-t border-surface-200" />
+        </div>
+
+        <button
+          type="button"
+          className="btn-secondary w-full"
+          disabled={googleSubmitting}
+          onClick={handleGoogleSignIn}
+        >
+          {googleSubmitting ? "Đang đăng nhập…" : "Đăng nhập bằng Google"}
+        </button>
+        <p className="text-xs text-slate-400 text-center mt-2">
+          Dùng đúng Gmail đã khai làm email phụ huynh — tự tạo tài khoản ngay lần đầu, không cần
+          mật khẩu hay bước xác minh email riêng.
+        </p>
 
         <p className="text-xs text-slate-400 text-center mt-4">
           Là giáo viên?{" "}
