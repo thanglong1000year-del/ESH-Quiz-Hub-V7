@@ -12,9 +12,11 @@
  * không ai tạo được tài khoản bằng email người khác rồi dò xem dữ liệu.
  */
 import {
+  GoogleAuthProvider,
   createUserWithEmailAndPassword,
   sendEmailVerification,
   signInWithEmailAndPassword,
+  signInWithPopup,
 } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
 import { auth, functions } from "@/firebase/client";
@@ -59,6 +61,20 @@ export async function signInParent(
   password: string
 ): Promise<{ children: ParentChildRef[] }> {
   await signInWithEmailAndPassword(auth, email.trim(), password);
+  return syncParentProfile();
+}
+
+/**
+ * Kênh thứ 3: đăng nhập Google — 1 lần bấm vừa tạo vừa đăng nhập tài khoản
+ * (Firebase tự tạo user mới nếu Gmail này chưa có), không cần mật khẩu
+ * riêng và không cần bước xác minh email (Google đã xác thực sẵn, token
+ * luôn có `email_verified: true` nên `syncParentProfile` chấp nhận ngay).
+ * Dùng chung `auth` chính như đăng nhập giáo viên (`LoginPage.tsx`) — an
+ * toàn vì `/parent/login` là route riêng, không có luồng nào khác đang
+ * lắng nghe `onAuthStateChanged` để điều hướng giữa chừng.
+ */
+export async function signInParentWithGoogle(): Promise<{ children: ParentChildRef[] }> {
+  await signInWithPopup(auth, new GoogleAuthProvider());
   return syncParentProfile();
 }
 

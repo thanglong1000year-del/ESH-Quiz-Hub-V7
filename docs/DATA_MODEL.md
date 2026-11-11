@@ -197,6 +197,31 @@ SMS. Route công khai `/parent/login` (`ParentLoginPage.tsx`), dashboard
   trực tiếp từ client (trừ chính `/users/{uid}` của họ, đã được phép đọc
   theo rule có sẵn `request.auth.uid == uid`) — mọi số liệu đi qua callable.
 
+### Đăng nhập phụ huynh bằng Google — kênh thứ 3, mang từ V6.3.8 sang
+
+Quyết định 2026-11-11: V6.3.8 (production) vừa thêm "Phụ huynh đăng nhập
+Google" bên cạnh link theo dõi tiến độ — mang sang V7 làm kênh thứ 3,
+song song (không thay thế) kênh email/mật khẩu ở trên.
+
+- `ParentLoginPage.tsx` thêm nút "Đăng nhập bằng Google" (`signInParentWithGoogle`
+  trong `parent-auth.ts`): `signInWithPopup(auth, new GoogleAuthProvider())`
+  rồi gọi lại đúng `syncParentProfile` đã có — **không cần Cloud Function
+  mới, không cần sửa `firestore.rules`**, vì `syncParentProfile` đã kiểm
+  `request.auth.token.email`/`email_verified` theo token, không theo
+  provider (Google hay email/mật khẩu).
+- Không cần bước xác minh email: token Google luôn có `email_verified:
+  true` sẵn, nên `syncParentProfile` chấp nhận ngay sau lần bấm đầu — nhanh
+  hơn kênh email/mật khẩu (phải chờ phụ huynh mở email xác minh).
+- Dùng chung `auth` chính của app (giống Google Sign-In của giáo viên ở
+  `LoginPage.tsx`), KHÔNG dựng Firebase app phụ như V6.3.8 đã phải làm —
+  lý do V6.3.8 cần tách là vì trang chủ của nó có 1 `onAuthStateChanged`
+  lớn dùng chung cho mọi vai trò, còn V7 đã tách `/parent/login` thành
+  route riêng và định tuyến vai trò qua hồ sơ `/users/{uid}` (`auth-context.tsx`),
+  nên không có xung đột nào để tránh.
+- **Lưu ý deploy production**: đã bật Google Sign-In cho giáo viên (mục
+  trên) thì kênh này dùng lại đúng cấu hình đó, không cần bật thêm gì ở
+  Firebase Console → Authentication → Sign-in method.
+
 ## Báo cáo/campaign — nhắc giờ gửi email (tuỳ chọn)
 
 Chỉ dùng khi trường muốn đẩy email chủ động và chấp nhận cài extension
